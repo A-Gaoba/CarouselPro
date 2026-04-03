@@ -73,7 +73,7 @@ export const BaseSlideTemplate = forwardRef<HTMLDivElement, BaseSlideTemplatePro
             </div>
             <span
               dir="auto"
-              className="break-words font-display text-[17px] font-semibold tracking-tight text-brand-primary"
+              className="max-w-full break-normal font-display text-[17px] font-semibold tracking-tight text-brand-primary [overflow-wrap:break-word] [word-break:normal] hyphens-manual"
             >
               {brand.name}
             </span>
@@ -122,7 +122,7 @@ export const BaseSlideTemplate = forwardRef<HTMLDivElement, BaseSlideTemplatePro
               <Globe size={11} className="shrink-0 opacity-50" strokeWidth={2} aria-hidden />
               <span
                 dir="ltr"
-                className="min-w-0 truncate text-start text-[10px] font-medium leading-tight tracking-wide text-gray-400/95 sm:text-[11px]"
+                className="min-w-0 truncate text-start text-[11px] font-medium leading-tight tracking-wide text-gray-400/95 sm:text-[12px]"
                 title={brand.website?.trim() || undefined}
               >
                 {brand.website?.trim() || "—"}
@@ -132,7 +132,7 @@ export const BaseSlideTemplate = forwardRef<HTMLDivElement, BaseSlideTemplatePro
               <MessageCircle size={11} className="shrink-0 opacity-50" strokeWidth={2} aria-hidden />
               <span
                 dir="ltr"
-                className="whitespace-nowrap text-start text-[10px] font-medium leading-tight tracking-wide text-gray-400/95 sm:text-[11px]"
+                className="whitespace-nowrap text-start text-[11px] font-medium leading-tight tracking-wide text-gray-400/95 sm:text-[12px]"
               >
                 {brand.whatsapp?.trim() || "—"}
               </span>

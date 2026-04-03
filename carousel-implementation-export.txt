@@ -1,0 +1,3508 @@
+﻿--- CAROUSEL IMPLEMENTATION EXPORT (current workspace) ---
+
+
+
+================================================================================
+FILE: src\components\slides\GeneratedSlideContent.tsx
+================================================================================
+
+import type { BrandConfig, SlideContent } from "../../types";
+import { ClassicSlideLayouts } from "./ClassicSlideLayouts";
+
+export interface GeneratedSlideLabels {
+  keyPoints: string;
+  before: string;
+  after: string;
+  getStarted: string;
+}
+
+/**
+ * Main content only: layoutType-driven archetypes (ClassicSlideLayouts).
+ * Header, footer, and outer canvas are unchanged in BaseSlideTemplate.
+ */
+export function GeneratedSlideContent({
+  slide,
+  brand,
+  dir,
+  labels,
+}: {
+  slide: SlideContent;
+  brand: BrandConfig;
+  dir: "ltr" | "rtl";
+  labels: GeneratedSlideLabels;
+}) {
+  const rtl = dir === "rtl";
+
+  return (
+    <div className="slide-main-slot flex min-h-0 w-full flex-1 flex-col justify-center overflow-hidden px-0">
+      <div className="slide-classic-fit">
+        <ClassicSlideLayouts
+          slide={slide}
+          brand={brand}
+          labels={labels}
+          rtl={rtl}
+        />
+      </div>
+    </div>
+  );
+}
+
+
+
+================================================================================
+FILE: src\components\slides\ClassicSlideLayouts.tsx
+================================================================================
+
+import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import type { CSSProperties } from "react";
+import type { BrandConfig, SlideContent } from "../../types";
+import {
+  bodyLineClass,
+  comparisonBodyClass,
+  ctaButtonPaddingClass,
+  ctaTitlePixelSize,
+  scaledLayoutTitle,
+  sectionGapClass,
+  stackClasses,
+  statFontClass,
+  subtitleClass,
+  totalTextLength,
+  verticalDensity,
+} from "./slideFit";
+
+type Density = ReturnType<typeof verticalDensity>;
+
+const MAX_ITEMS = 6;
+
+export type ClassicSlideLabels = {
+  keyPoints: string;
+  before: string;
+  after: string;
+  getStarted: string;
+};
+
+export const CLASSIC_LAYOUT_TYPES = [
+  "hero-typography",
+  "big-statement",
+  "split-content",
+  "feature-list",
+  "comparison",
+  "cta-final",
+] as const;
+
+export type ClassicLayoutType = (typeof CLASSIC_LAYOUT_TYPES)[number];
+
+export function isClassicLayoutType(
+  layout: SlideContent["layoutType"]
+): layout is ClassicLayoutType {
+  return (CLASSIC_LAYOUT_TYPES as readonly string[]).includes(layout);
+}
+
+function mainAxisJustify(density: Density): string {
+  return density === "compact" || density === "tight"
+    ? "justify-start"
+    : "justify-center";
+}
+
+function compactVerticalClass(density: Density): string {
+  return density === "tight" || density === "compact"
+    ? "is-compact-vertical"
+    : "";
+}
+
+export function ClassicSlideLayouts({
+  slide,
+  brand,
+  labels,
+  rtl,
+}: {
+  slide: SlideContent;
+  brand: BrandConfig;
+  labels: ClassicSlideLabels;
+  rtl: boolean;
+}) {
+  const dirAttr = rtl ? "rtl" : "ltr";
+  const quoteOpen = rtl ? "\u00AB" : "\u201C";
+  const quoteClose = rtl ? "\u00BB" : "\u201D";
+
+  const total = totalTextLength(slide);
+  const density = verticalDensity(total);
+  const gapSection = sectionGapClass(density);
+  const justify = mainAxisJustify(density);
+
+  switch (slide.layoutType) {
+    case "hero-typography": {
+      const pillLabel =
+        slide.visualIntent?.trim().slice(0, 28) || "Premium Guide";
+      const titlePx = scaledLayoutTitle(slide.title, 84, 18, "hero");
+      return (
+        <div
+          dir={dirAttr}
+          className={`slide-content-container slide-classic-scene ${compactVerticalClass(density)} flex min-h-0 w-full min-w-0 flex-col ${stackClasses("hero", density)} ${justify} text-start`}
+        >
+          <div className="bg-blob pointer-events-none absolute end-0 top-0 h-72 w-72 opacity-[0.12] bg-brand-accent max-md:h-56 max-md:w-56" />
+          <div className="bg-blob pointer-events-none absolute bottom-0 start-0 h-56 w-56 opacity-[0.08] bg-brand-cta max-md:h-44 max-md:w-44" />
+
+          <div className="brand-pill relative z-10 shrink-0 self-start">
+            <Sparkles size={14} className="text-brand-accent" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/60">
+              {pillLabel}
+            </span>
+          </div>
+
+          <h3
+            className="slide-classic-hero-title relative z-10 min-h-0 min-w-0 shrink-0 break-words font-display font-black leading-[0.95] tracking-tight text-brand-primary"
+            style={{ fontSize: titlePx }}
+          >
+            {slide.title}
+          </h3>
+
+          {slide.subtitle ? (
+            <p
+              className={`slide-classic-hero-sub max-w-full font-medium text-brand-primary/60 relative z-10 sm:max-w-md ${subtitleClass(slide.subtitle, "hero")}`}
+            >
+              {slide.subtitle}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
+
+    case "big-statement": {
+      const titleQuoted = `${quoteOpen}${slide.title}${quoteClose}`;
+      const titlePx = scaledLayoutTitle(titleQuoted, 64, 16, "big");
+      const statCls = slide.stats?.trim()
+        ? statFontClass(slide.stats.trim())
+        : "";
+      return (
+        <div
+          dir={dirAttr}
+          className={`slide-content-container slide-classic-scene ${compactVerticalClass(density)} relative flex min-h-0 w-full min-w-0 flex-col items-center ${stackClasses("section", density)} ${justify} text-center`}
+        >
+          <div
+            className="bg-grid pointer-events-none opacity-[0.04]"
+            style={{ "--grid-color": "var(--brand-accent)" } as CSSProperties}
+          />
+
+          {slide.stats?.trim() ? (
+            <div
+              className={`${statCls} font-display relative z-10 min-w-0 max-w-[min(100%,36rem)] shrink-0 break-words font-black tracking-tighter text-brand-accent`}
+            >
+              {slide.stats}
+            </div>
+          ) : null}
+
+          <h3
+            className="slide-classic-big-title min-h-0 min-w-0 max-w-[95%] shrink-0 break-words font-display font-black italic leading-[1.1] tracking-tight text-brand-primary"
+            style={{ fontSize: titlePx }}
+          >
+            {titleQuoted}
+          </h3>
+
+          {slide.subtitle ? (
+            <p
+              className={`slide-classic-big-sub relative z-10 mx-auto max-w-[min(100%,36rem)] font-medium text-brand-primary/50 ${subtitleClass(slide.subtitle, "big")}`}
+            >
+              {slide.subtitle}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
+
+    case "split-content": {
+      const items = (slide.body ?? []).slice(0, MAX_ITEMS);
+      const isCompact = items.length > 3;
+      const titlePx = scaledLayoutTitle(slide.title, 56, 18, "split");
+      const panelPad = density === "compact" ? "p-4" : "p-5 sm:p-6";
+      return (
+        <div
+          dir={dirAttr}
+          className={`slide-content-container slide-classic-scene ${compactVerticalClass(density)} flex min-h-0 w-full min-w-0 flex-col ${gapSection} text-start`}
+        >
+          <div
+            className={
+              density === "compact" ? "shrink-0 space-y-3" : "shrink-0 space-y-4"
+            }
+          >
+            <div className="h-2 w-16 rounded-full bg-accent-gradient" />
+            <h3
+              className="slide-classic-split-title min-w-0 break-words font-display font-black leading-tight tracking-tight text-brand-primary"
+              style={{ fontSize: titlePx }}
+            >
+              {slide.title}
+            </h3>
+            {slide.subtitle ? (
+              <p
+                className={`font-medium text-brand-primary/60 ${subtitleClass(slide.subtitle, "body")}`}
+              >
+                {slide.subtitle}
+              </p>
+            ) : null}
+          </div>
+
+          <div
+            className={`grid min-h-0 min-w-0 flex-1 ${isCompact ? "grid-cols-2" : "grid-cols-1"} ${density === "compact" ? "gap-2" : "gap-3"}`}
+          >
+            {items.map((item, i) => (
+              <div
+                key={i}
+                className={`glass-panel flex min-h-0 min-w-0 items-start gap-3 ${panelPad}`}
+              >
+                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-accent/15 text-brand-accent">
+                  <CheckCircle2 size={16} />
+                </div>
+                <p className={bodyLineClass(item, isCompact, density)}>
+                  {item}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case "feature-list": {
+      const items = (slide.body ?? []).slice(0, MAX_ITEMS);
+      const isCompact = items.length > 3;
+      const titlePx = scaledLayoutTitle(slide.title, 52, 18, "feature");
+      return (
+        <div
+          dir={dirAttr}
+          className={`slide-content-container slide-classic-scene ${compactVerticalClass(density)} flex min-h-0 w-full min-w-0 flex-col ${stackClasses("section", density)} text-start`}
+        >
+          <div className="shrink-0 space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-primary/40">
+              {labels.keyPoints}
+            </span>
+            <h3
+              className="slide-classic-feature-title min-w-0 break-words font-display font-black leading-tight tracking-tight text-brand-primary"
+              style={{ fontSize: titlePx }}
+            >
+              {slide.title}
+            </h3>
+          </div>
+
+          <div
+            className={`grid min-h-0 min-w-0 flex-1 ${isCompact ? "grid-cols-2" : "grid-cols-1"} ${density === "compact" ? "gap-2" : "gap-4"}`}
+          >
+            {items.map((item, i) => (
+              <div
+                key={i}
+                className={`feature-card min-h-0 min-w-0 ${density === "compact" ? "!gap-3 !p-4" : ""}`}
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-accent/15 text-brand-accent">
+                  <span className="text-xs font-black">{i + 1}</span>
+                </div>
+                <p className={bodyLineClass(item, isCompact, density)}>
+                  {item}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case "comparison": {
+      const titlePx = scaledLayoutTitle(slide.title, 30, 12, "compare");
+      const cardPad =
+        density === "compact" ? "p-3 sm:p-4" : "p-4 sm:p-5 md:p-6";
+      const vsSize =
+        density === "compact"
+          ? "h-9 w-9 min-h-9 min-w-9 text-[9px]"
+          : "h-11 w-11 min-h-11 min-w-11 text-[10px]";
+      return (
+        <div
+          dir={dirAttr}
+          className={`slide-content-container slide-classic-scene ${compactVerticalClass(density)} flex min-h-0 w-full min-w-0 flex-col ${gapSection} text-start`}
+        >
+          <div className="shrink-0 space-y-2 text-center">
+            <h3
+              className="slide-classic-compare-header min-w-0 break-words font-display font-black uppercase tracking-tight text-brand-primary"
+              style={{ fontSize: titlePx }}
+            >
+              {slide.title}
+            </h3>
+            <div className="mx-auto h-1 w-24 rounded-full bg-accent-gradient" />
+          </div>
+
+          <div className="flex min-h-0 min-w-0 flex-1 flex-row items-stretch gap-2 sm:gap-3">
+            <div
+              className={`comparison-card relative flex min-h-0 min-w-0 flex-1 flex-col border-brand-primary/10 bg-gray-50/50 ${cardPad}`}
+            >
+              <div className="absolute start-0 top-0 h-full w-1 bg-red-400/30" />
+              <span className="mb-1.5 block shrink-0 text-[10px] font-black uppercase tracking-widest text-red-500 sm:mb-2">
+                {labels.before}
+              </span>
+              <p
+                className={`min-h-0 flex-1 ${comparisonBodyClass(
+                  slide.body?.[0] ?? "â€”",
+                  "before"
+                )}`}
+              >
+                {slide.body?.[0] ?? "â€”"}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 flex-col items-center justify-center self-stretch px-0.5">
+              <div
+                className={`flex items-center justify-center rounded-full border border-gray-100 bg-white font-black italic leading-none text-black shadow-xl ${vsSize}`}
+              >
+                VS
+              </div>
+            </div>
+
+            <div
+              className={`comparison-card glass-panel relative flex min-h-0 min-w-0 flex-1 flex-col border-brand-accent shadow-lg ${cardPad}`}
+            >
+              <div className="absolute start-0 top-0 h-full w-1 bg-brand-accent" />
+              <span className="mb-1.5 block shrink-0 text-[10px] font-black uppercase tracking-widest text-brand-accent sm:mb-2">
+                {labels.after}
+              </span>
+              <p
+                className={`min-h-0 flex-1 ${comparisonBodyClass(
+                  slide.body?.[1] ?? "â€”",
+                  "after"
+                )}`}
+              >
+                {slide.body?.[1] ?? "â€”"}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "cta-final": {
+      const ctaLabel = slide.ctaText?.trim() || labels.getStarted;
+      const titleStyle = { fontSize: ctaTitlePixelSize(slide.title) };
+      const logoBox =
+        density === "compact" ? "h-20 w-20 text-3xl" : "h-24 w-24 text-4xl";
+      const imgBox = density === "compact" ? "h-14 w-14" : "h-16 w-16";
+      const btnPad = ctaButtonPaddingClass(ctaLabel, density);
+      return (
+        <div
+          dir={dirAttr}
+          className={`slide-content-container slide-classic-scene ${compactVerticalClass(density)} relative flex min-h-0 w-full min-w-0 flex-col items-center ${stackClasses("cta", density)} ${justify} text-center`}
+        >
+          <div
+            className="bg-pattern pointer-events-none opacity-[0.04]"
+            style={{ "--pattern-color": "var(--brand-accent)" } as CSSProperties}
+          />
+
+          <div
+            className={`relative z-10 flex shrink-0 items-center justify-center rounded-[32px] border border-gray-50 bg-white shadow-xl ${logoBox}`}
+          >
+            {brand.logoUrl ? (
+              <img
+                src={brand.logoUrl}
+                className={`${imgBox} object-contain`}
+                alt=""
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span aria-hidden>{brand.logo}</span>
+            )}
+          </div>
+
+          <div className="relative z-10 min-h-0 min-w-0 max-w-[95%] shrink-0 space-y-2 sm:space-y-3">
+            <h3
+              className="slide-classic-cta-title min-h-0 min-w-0 break-words font-display font-black uppercase leading-tight tracking-tighter text-brand-primary"
+              style={titleStyle}
+            >
+              {slide.title}
+            </h3>
+            {slide.subtitle ? (
+              <p
+                className={`slide-classic-cta-sub mx-auto max-w-[min(100%,20rem)] font-medium text-brand-primary/50 ${subtitleClass(slide.subtitle, "big")}`}
+              >
+                {slide.subtitle}
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            className={`cta-button bg-accent-gradient relative z-10 min-h-0 min-w-0 max-w-full shrink-0 ${btnPad}`}
+            tabIndex={-1}
+          >
+            <span className="min-w-0 flex-1 break-words text-start leading-snug">
+              {ctaLabel}
+            </span>
+            <ArrowRight
+              size={24}
+              className="shrink-0 rtl:scale-x-[-1]"
+              aria-hidden
+            />
+          </button>
+        </div>
+      );
+    }
+
+  }
+}
+
+
+
+================================================================================
+FILE: src\components\slides\slideFit.ts
+================================================================================
+
+import type { SlideContent } from "../../types";
+
+/** Combined character load for spacing / density heuristics. */
+export function totalTextLength(slide: SlideContent): number {
+  const body = (slide.body ?? []).join("");
+  return (
+    (slide.title?.length ?? 0) +
+    (slide.subtitle?.length ?? 0) +
+    body.length +
+    (slide.stats?.length ?? 0) +
+    (slide.ctaText?.length ?? 0)
+  );
+}
+
+/** Vertical rhythm: tighter when copy is heavy (4:5 safe area). */
+export function verticalDensity(total: number): "airy" | "normal" | "tight" | "compact" {
+  if (total > 360) return "compact";
+  if (total > 240) return "tight";
+  if (total > 140) return "normal";
+  return "airy";
+}
+
+const DENSITY_STACK: Record<
+  ReturnType<typeof verticalDensity>,
+  { hero: string; section: string; cta: string }
+> = {
+  airy: { hero: "space-y-8", section: "space-y-10", cta: "gap-12" },
+  normal: { hero: "space-y-6", section: "space-y-8", cta: "gap-10" },
+  tight: { hero: "space-y-5", section: "space-y-6", cta: "gap-8" },
+  compact: { hero: "space-y-4", section: "space-y-5", cta: "gap-6" },
+};
+
+const DENSITY_GAP: Record<ReturnType<typeof verticalDensity>, string> = {
+  airy: "gap-10",
+  normal: "gap-8",
+  tight: "gap-6",
+  compact: "gap-4",
+};
+
+export function stackClasses(
+  layout: "hero" | "section" | "cta",
+  density: ReturnType<typeof verticalDensity>
+): string {
+  const row = DENSITY_STACK[density];
+  if (layout === "hero") return row.hero;
+  if (layout === "section") return row.section;
+  return row.cta;
+}
+
+export function sectionGapClass(density: ReturnType<typeof verticalDensity>): string {
+  return DENSITY_GAP[density];
+}
+
+function estimatedWrapLines(text: string, charsPerLine: number): number {
+  if (!text.length) return 1;
+  return Math.max(1, Math.ceil(text.length / charsPerLine));
+}
+
+/**
+ * Extra scale-down when implied line count is high (4:5 portrait; avoids vertical spill).
+ */
+export function wrapLoadFactor(text: string, charsPerLine: number): number {
+  const lines = estimatedWrapLines(text, charsPerLine);
+  if (lines <= 2) return 1;
+  if (lines <= 3) return 0.9;
+  if (lines <= 4) return 0.82;
+  if (lines <= 5) return 0.74;
+  if (lines <= 6) return 0.66;
+  if (lines <= 8) return 0.58;
+  if (lines <= 10) return 0.52;
+  return 0.46;
+}
+
+/** Core pixel value from character-length tiers (before wrap load). */
+export function scaledPixelValue(text: string, base: number, min: number): number {
+  const len = (text ?? "").length;
+  let factor = 1;
+  if (len > 14) factor *= 0.94;
+  if (len > 22) factor *= 0.92;
+  if (len > 32) factor *= 0.9;
+  if (len > 44) factor *= 0.88;
+  if (len > 56) factor *= 0.85;
+  if (len > 72) factor *= 0.82;
+  if (len > 90) factor *= 0.8;
+  if (len > 110) factor *= 0.78;
+  if (len > 130) factor *= 0.76;
+  if (len > 160) factor *= 0.74;
+  if (len > 200) factor *= 0.72;
+  if (len > 260) factor *= 0.7;
+  if (len > 320) factor *= 0.68;
+  return Math.max(min, Math.round(base * factor));
+}
+
+/**
+ * Title / headline pixel size â€” length tiers only (use `scaledLayoutTitle` for layout-aware fit).
+ */
+export function getScaledPixelSize(text: string, base: number, min: number): string {
+  return `${scaledPixelValue(text, base, min)}px`;
+}
+
+const LAYOUT_CHARS: Record<
+  "hero" | "big" | "split" | "feature" | "compare" | "cta",
+  number
+> = {
+  hero: 11,
+  big: 13,
+  split: 20,
+  feature: 22,
+  compare: 26,
+  cta: 15,
+};
+
+/**
+ * Title size with both character tiers and implied wrap load (per layout column width).
+ */
+export function scaledLayoutTitle(
+  text: string,
+  base: number,
+  min: number,
+  layout: keyof typeof LAYOUT_CHARS
+): string {
+  let v = scaledPixelValue(text, base, min);
+  v = Math.max(
+    min,
+    Math.round(v * wrapLoadFactor(text, LAYOUT_CHARS[layout]))
+  );
+  return `${v}px`;
+}
+
+/** Subtitle / supporting line â€” class names by length. */
+export function subtitleClass(
+  text: string | undefined,
+  size: "hero" | "big" | "body"
+): string {
+  const len = (text ?? "").length;
+  if (size === "hero") {
+    if (len > 220) return "text-sm leading-snug";
+    if (len > 140) return "text-base leading-snug";
+    if (len > 100) return "text-base leading-snug";
+    if (len > 55) return "text-lg leading-snug";
+    return "text-2xl leading-relaxed";
+  }
+  if (size === "big") {
+    if (len > 180) return "text-sm leading-snug";
+    if (len > 90) return "text-base leading-snug";
+    if (len > 45) return "text-lg leading-snug";
+    return "text-xl leading-relaxed";
+  }
+  return len > 120 ? "text-sm leading-snug" : len > 80 ? "text-base leading-snug" : "text-xl";
+}
+
+/** Stat number scale for big-statement. */
+export function statFontClass(stats: string): string {
+  const len = stats.length;
+  if (len > 20) return "slide-classic-stat-num slide-classic-stat-num--xs";
+  if (len > 12) return "slide-classic-stat-num slide-classic-stat-num--sm";
+  if (len > 6) return "slide-classic-stat-num slide-classic-stat-num--md";
+  return "slide-classic-stat-num";
+}
+
+/** Body line in list / split cards. */
+export function bodyLineClass(
+  text: string,
+  compact: boolean,
+  density: ReturnType<typeof verticalDensity>
+): string {
+  const long = text.length > 90;
+  const veryLong = text.length > 200;
+  const base = compact ? "text-sm" : "text-lg";
+  if (veryLong || (density === "compact" && text.length > 120)) {
+    return `min-w-0 break-words font-bold leading-snug text-brand-primary text-xs`;
+  }
+  if (long || density === "compact") {
+    return `min-w-0 break-words font-bold leading-snug text-brand-primary text-sm`;
+  }
+  return `min-w-0 break-words font-bold leading-snug text-brand-primary ${base}`;
+}
+
+/** CTA title â€” layout-aware. */
+export function ctaTitlePixelSize(title: string): string {
+  return scaledLayoutTitle(title, 48, 14, "cta");
+}
+
+/** Comparison column body â€” scales down when copy is long. */
+export function comparisonBodyClass(
+  text: string,
+  side: "before" | "after"
+): string {
+  const len = text.length;
+  const tone =
+    side === "before"
+      ? "italic text-brand-primary/40"
+      : "font-black text-brand-primary";
+  if (len > 240) {
+    return `min-w-0 break-words text-[11px] font-bold leading-tight ${tone}`;
+  }
+  if (len > 180) {
+    return `min-w-0 break-words text-xs font-bold leading-snug ${tone}`;
+  }
+  if (len > 140) {
+    return `min-w-0 break-words text-xs font-bold leading-snug ${tone}`;
+  }
+  if (len > 100) {
+    return `min-w-0 break-words text-sm font-bold leading-snug ${tone}`;
+  }
+  if (len > 55) {
+    return `min-w-0 break-words text-base font-bold leading-snug ${tone}`;
+  }
+  return `min-w-0 break-words text-xl leading-snug ${tone}`;
+}
+
+/** CTA button padding + type scale from label length (and deck density). */
+export function ctaButtonPaddingClass(
+  label: string,
+  density: ReturnType<typeof verticalDensity>
+): string {
+  const len = label.length;
+  if (density === "compact") {
+    if (len > 85) return "gap-2 px-3 py-2 text-xs sm:px-4 sm:text-sm";
+    if (len > 50) return "gap-2 px-4 py-2.5 text-sm";
+  }
+  if (len > 95) return "gap-2 px-4 py-2.5 text-xs sm:px-5 sm:text-sm";
+  if (len > 70) return "gap-2 px-5 py-3 text-sm sm:text-base";
+  if (len > 42) return "gap-3 px-6 py-3.5 text-sm sm:text-base";
+  return "gap-3 px-12 py-5 text-xl";
+}
+
+
+
+================================================================================
+FILE: src\components\slides\BaseSlideTemplate.tsx
+================================================================================
+
+import { forwardRef, type ReactNode } from "react";
+import { Globe, MessageCircle, Share2 } from "lucide-react";
+import type { BrandConfig } from "../../types";
+
+export interface BaseSlideTemplateProps {
+  brand: BrandConfig;
+  index: number;
+  total: number;
+  children: ReactNode;
+  /** e.g. layoutType for generated slides; optional for preview */
+  dataLayoutType?: string;
+  /** Stable id for export sync (matches SlideContent.id) */
+  slideExportId?: string;
+  /**
+   * Direction for the main content region only. Header/footer/chrome stay fixed (LTR layout).
+   */
+  contentDir?: "ltr" | "rtl";
+  className?: string;
+}
+
+/**
+ * Shared visual shell: dot field, header (logo, name, progress, share),
+ * main injection region, footer (website, whatsapp, slide index).
+ * Chrome is always laid out like English (LTR); only `contentDir` affects the main slot.
+ */
+export const BaseSlideTemplate = forwardRef<HTMLDivElement, BaseSlideTemplateProps>(
+  function BaseSlideTemplate(
+    {
+      brand,
+      index,
+      total,
+      children,
+      dataLayoutType,
+      slideExportId,
+      contentDir = "ltr",
+      className = "",
+    },
+    ref
+  ) {
+    const contentRtl = contentDir === "rtl";
+
+    return (
+      <div
+        ref={ref}
+        dir="ltr"
+        lang="en"
+        data-layout-type={dataLayoutType}
+        data-slide-export-id={slideExportId}
+        className={`slide-canvas slide-template-surface select-none rounded-[24px] border border-gray-200/90 shadow-[0_24px_48px_-16px_rgba(15,23,42,0.09),0_12px_24px_-10px_rgba(15,23,42,0.04)] ${className}`}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 z-0 rounded-[24px] slide-template-dots opacity-[0.5]"
+          aria-hidden
+        />
+
+        <header className="relative z-10 flex shrink-0 items-center justify-between gap-4 px-8 pb-5 pt-8">
+          <div className="flex min-w-0 items-center gap-3 text-start">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gray-200/80 bg-white text-lg shadow-sm"
+              style={{ boxShadow: `0 1px 2px ${brand.primaryColor}08` }}
+            >
+              {brand.logoUrl ? (
+                <img
+                  src={brand.logoUrl}
+                  alt=""
+                  className="h-7 w-7 object-contain"
+                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span aria-hidden>{brand.logo}</span>
+              )}
+            </div>
+            <span
+              dir="auto"
+              className="break-words font-display text-[17px] font-semibold tracking-tight text-brand-primary"
+            >
+              {brand.name}
+            </span>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-4">
+            <div
+              className="flex items-center gap-1.5"
+              dir="ltr"
+              role="presentation"
+              aria-label={`Slide ${index + 1} of ${total}`}
+            >
+              {Array.from({ length: total }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-1.5 w-1.5 rounded-full transition-all duration-300"
+                  style={{
+                    backgroundColor: i === index ? brand.accentColor : `${brand.primaryColor}18`,
+                    opacity: i === index ? 1 : 0.45,
+                    transform: i === index ? "scale(1.35)" : "scale(1)",
+                  }}
+                />
+              ))}
+            </div>
+            <span className="text-gray-300" aria-hidden title="Share">
+              <Share2 size={16} strokeWidth={1.75} />
+            </span>
+          </div>
+        </header>
+
+        <main
+          dir={contentDir}
+          lang={contentRtl ? "ar" : "en"}
+          className={`slide-main-inject ${contentRtl ? "slide-main-rtl" : ""}`}
+        >
+          {children}
+        </main>
+
+        <footer className="relative z-10 mt-auto shrink-0 px-8 pb-8 pt-2">
+          <div
+            className="mb-5 h-px w-full"
+            style={{ backgroundColor: `${brand.primaryColor}12` }}
+          />
+          <div className="flex w-full items-center gap-x-3 sm:gap-x-5" dir="ltr">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Globe size={11} className="shrink-0 opacity-50" strokeWidth={2} aria-hidden />
+              <span
+                dir="ltr"
+                className="min-w-0 truncate text-start text-[10px] font-medium leading-tight tracking-wide text-gray-400/95 sm:text-[11px]"
+                title={brand.website?.trim() || undefined}
+              >
+                {brand.website?.trim() || "â€”"}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <MessageCircle size={11} className="shrink-0 opacity-50" strokeWidth={2} aria-hidden />
+              <span
+                dir="ltr"
+                className="whitespace-nowrap text-start text-[10px] font-medium leading-tight tracking-wide text-gray-400/95 sm:text-[11px]"
+              >
+                {brand.whatsapp?.trim() || "â€”"}
+              </span>
+            </div>
+            <span
+              dir="ltr"
+              className="shrink-0 whitespace-nowrap text-[10px] font-semibold tabular-nums text-gray-500/90 sm:text-[11px]"
+            >
+              {index + 1} / {total}
+            </span>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+);
+
+BaseSlideTemplate.displayName = "BaseSlideTemplate";
+
+
+
+================================================================================
+FILE: src\index.css
+================================================================================
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-ar-sans: "Tajawal", "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-ar-display: "Tajawal", "Noto Sans Arabic", sans-serif;
+  
+  --color-brand-primary: var(--brand-primary, #0F172A);
+  --color-brand-secondary: var(--brand-secondary, #F8FAFC);
+  --color-brand-accent: var(--brand-accent, #6366F1);
+  --color-brand-cta: var(--brand-cta, #4F46E5);
+}
+
+@layer base {
+  body {
+    @apply bg-[#fdfdfd] text-[#0F172A] font-sans antialiased;
+  }
+
+  html[lang="ar"] body {
+    font-family: var(--font-ar-sans);
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  html[lang="ar"] h1,
+  html[lang="ar"] h2,
+  html[lang="ar"] h3,
+  html[lang="ar"] h4,
+  html[lang="ar"] h5,
+  html[lang="ar"] h6 {
+    font-family: var(--font-ar-display);
+    letter-spacing: 0;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+}
+
+/* Slide Canvas & Layouts */
+.slide-canvas {
+  @apply relative w-full h-full overflow-hidden flex flex-col;
+  aspect-ratio: 4 / 5;
+}
+
+/* Premium empty template: subtle dot field + injection region */
+.slide-template-surface {
+  background-color: #fafafa;
+}
+
+.slide-template-dots {
+  background-image: radial-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.slide-main-inject {
+  @apply relative z-[1] flex min-h-0 flex-1 flex-col px-10 py-8;
+}
+
+/**
+ * Arabic content region only (header/footer stay LTR in BaseSlideTemplate).
+ * Tajawal + metrics; does not mirror chrome layout.
+ */
+.slide-main-rtl {
+  font-family: var(--font-ar-sans);
+}
+
+.slide-main-rtl .font-display {
+  font-family: var(--font-ar-display);
+}
+
+/**
+ * Inner content card â€” premium paper panel (not uniform glass). Aligns with header/footer px-8.
+ */
+.slide-content-inner {
+  --slide-chrome-pad-x: 2rem;
+  --slide-main-pad-x: 2.5rem;
+  --slide-slot-pad-x: 1rem;
+  --slide-card-outdent: calc(
+    var(--slide-main-pad-x) + var(--slide-slot-pad-x) - var(--slide-chrome-pad-x)
+  );
+  box-sizing: border-box;
+  width: calc(100% + 2 * var(--slide-card-outdent));
+  max-width: none;
+  margin-block: 0;
+  margin-inline: calc(-1 * var(--slide-card-outdent));
+  padding: 1.35rem 1.2rem;
+  border-radius: 1.05rem;
+  border: 1px solid rgb(229 231 235 / 0.95);
+  background: rgb(255 255 255 / 0.98);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 18px 44px -16px rgb(15 23 42 / 0.14),
+    0 6px 20px -8px rgb(15 23 42 / 0.08);
+}
+
+/* Per-role card surfaces â€” distinct â€œmomentsâ€ across the carousel */
+.slide-content-inner.slide-hook {
+  background: linear-gradient(165deg, #ffffff 0%, #f1f5f9 55%, #f8fafc 100%);
+  border-color: rgb(226 232 240 / 0.95);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 22px 48px -18px rgb(15 23 42 / 0.16),
+    0 8px 24px -10px rgb(15 23 42 / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+}
+
+.slide-content-inner.slide-list {
+  background: linear-gradient(
+    100deg,
+    rgb(238 242 255 / 0.55) 0%,
+    #ffffff 38%,
+    #ffffff 100%
+  );
+  border-inline-start: 3px solid rgb(99 102 241 / 0.55);
+  padding-inline-start: calc(1.2rem - 3px);
+  border-color: rgb(226 232 240 / 0.95);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 40px -18px rgb(79 70 229 / 0.1),
+    0 6px 16px -6px rgb(15 23 42 / 0.07);
+}
+
+.slide-content-inner.slide-stat {
+  background: linear-gradient(
+    150deg,
+    rgb(238 242 255 / 0.65) 0%,
+    #ffffff 45%,
+    #fafafa 100%
+  );
+  border-color: rgb(199 210 254 / 0.55);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 20px 46px -16px rgb(99 102 241 / 0.14),
+    0 8px 20px -8px rgb(15 23 42 / 0.09);
+}
+
+.slide-content-inner.slide-comparison {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-color: rgb(203 213 225 / 0.9);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 18px 42px -16px rgb(15 23 42 / 0.13),
+    inset 0 1px 0 rgb(255 255 255 / 0.85);
+}
+
+.slide-content-inner.slide-cta {
+  background: linear-gradient(180deg, #ffffff 0%, rgb(245 243 255 / 0.85) 100%);
+  border-color: rgb(199 210 254 / 0.65);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 24px 50px -18px rgb(79 70 229 / 0.12),
+    0 8px 22px -8px rgb(15 23 42 / 0.08);
+}
+
+.slide-content-inner.slide-insight {
+  background: linear-gradient(160deg, #ffffff 0%, rgb(248 250 252) 100%);
+  border-color: rgb(226 232 240 / 0.95);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 38px -16px rgb(15 23 42 / 0.11);
+}
+
+.slide-content-inner.slide-problem {
+  background: linear-gradient(
+    145deg,
+    rgb(255 247 247 / 0.9) 0%,
+    #ffffff 50%,
+    #fafafa 100%
+  );
+  border-inline-start: 3px solid rgb(248 113 113 / 0.45);
+  padding-inline-start: calc(1.2rem - 3px);
+  border-color: rgb(254 226 226 / 0.85);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 40px -16px rgb(220 38 38 / 0.08);
+}
+
+.slide-content-inner.slide-solution {
+  background: linear-gradient(
+    145deg,
+    rgb(236 253 245 / 0.75) 0%,
+    #ffffff 55%,
+    #fafafa 100%
+  );
+  border-inline-start: 3px solid rgb(52 211 153 / 0.5);
+  padding-inline-start: calc(1.2rem - 3px);
+  border-color: rgb(209 250 229 / 0.9);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 40px -16px rgb(16 185 129 / 0.1);
+}
+
+/* Fixed typography tiers â€” all content modes use these only */
+.slide-type-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 4vw + 0.35rem, 2.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-brand-primary);
+}
+
+.slide-main-rtl .slide-type-title {
+  font-family: var(--font-ar-display);
+  letter-spacing: 0;
+  line-height: 1.22;
+}
+
+.slide-type-subtitle {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.58;
+  @apply text-brand-primary/55;
+}
+
+.slide-main-rtl .slide-type-subtitle {
+  line-height: 1.78;
+}
+
+.slide-type-body {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.52;
+  @apply text-brand-primary;
+}
+
+.slide-main-rtl .slide-type-body {
+  line-height: 1.78;
+}
+
+/* Eyebrow: readable at small sizes; LTR uses light tracking + caps */
+.slide-type-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  @apply text-brand-primary/50;
+}
+
+/* Arabic / RTL labels: no faux-Latin tracking; sentence case reads naturally */
+.slide-type-eyebrow-rtl {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+/* Stat: supporting emphasis only â€” title stays the hero */
+.slide-type-stat {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 3.2vw + 0.4rem, 1.85rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  @apply text-brand-accent/85;
+}
+
+.slide-main-rtl .slide-type-stat {
+  font-family: var(--font-ar-display);
+  letter-spacing: 0;
+}
+
+/*
+ * Expressive layer â€” same DOM/layout; driven by data-emphasis / data-rhythm on .slide-content-inner
+ */
+.slide-content-inner[data-emphasis="hook"] .slide-inner-accent {
+  width: 4rem;
+  opacity: 0.92;
+}
+
+.slide-content-inner[data-emphasis="hook"] .slide-type-title {
+  font-size: clamp(1.68rem, 4.85vw + 0.45rem, 3.05rem);
+  line-height: 1.09;
+  letter-spacing: -0.025em;
+}
+
+.slide-content-inner[data-emphasis="hook"] .slide-type-subtitle {
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  @apply text-brand-primary/48;
+}
+
+.slide-main-rtl .slide-content-inner[data-emphasis="hook"] .slide-type-subtitle {
+  line-height: 1.76;
+}
+
+.slide-content-inner[data-emphasis="hook"] [data-slot="body"] {
+  min-height: 1.125rem;
+}
+
+.slide-content-inner[data-emphasis="title"] .slide-type-title {
+  font-size: clamp(1.56rem, 4.25vw + 0.36rem, 2.88rem);
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+}
+
+.slide-content-inner[data-emphasis="body"] .slide-type-title {
+  font-size: clamp(1.38rem, 3.45vw + 0.24rem, 2.38rem);
+  font-weight: 600;
+  line-height: 1.18;
+  @apply text-brand-primary/90;
+}
+
+.slide-content-inner[data-emphasis="body"] .slide-type-body {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.slide-main-rtl .slide-content-inner[data-emphasis="body"] .slide-type-body {
+  line-height: 1.78;
+}
+
+.slide-content-inner[data-emphasis="balanced"] .slide-type-title {
+  font-size: clamp(1.52rem, 4.05vw + 0.32rem, 2.72rem);
+  line-height: 1.12;
+}
+
+/* Closing: terminal weight â€” no gradient */
+.slide-content-inner[data-emphasis="close"] .slide-unified-cta {
+  padding-top: 1.05rem;
+  padding-bottom: 1.05rem;
+  font-size: 0.96875rem;
+  @apply border-brand-primary/28 bg-brand-primary/[0.09] text-brand-primary shadow-md;
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.06),
+    0 2px 8px -2px rgb(15 23 42 / 0.08);
+}
+
+.slide-content-inner[data-emphasis="close"] .slide-unified-cta:hover {
+  @apply shadow-lg;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Role variants â€” same .slide-content-inner card, different visual moments   */
+/* -------------------------------------------------------------------------- */
+
+/* Hook: hero title, hide empty body region, generous vertical rhythm */
+.slide-content-inner.slide-hook[data-body-empty="true"] [data-slot="body"] {
+  display: none;
+}
+
+.slide-content-inner.slide-hook .slide-inner-accent {
+  width: 5rem;
+  height: 0.25rem;
+  margin-bottom: 1.85rem;
+  @apply bg-brand-accent;
+  opacity: 1;
+}
+
+.slide-content-inner.slide-hook .slide-type-title {
+  font-size: clamp(1.95rem, 5.85vw + 0.55rem, 3.55rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+}
+
+.slide-main-rtl .slide-content-inner.slide-hook .slide-type-title {
+  line-height: 1.14;
+}
+
+.slide-content-inner.slide-hook [data-layout="unified"] {
+  gap: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+/* List: scannable bullets, steady title tier */
+.slide-content-inner.slide-list .slide-type-title {
+  font-size: clamp(1.38rem, 3.5vw + 0.26rem, 2.28rem);
+  font-weight: 800;
+  line-height: 1.12;
+  @apply text-brand-primary;
+}
+
+.slide-content-inner.slide-list .slide-type-body {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.slide-content-inner.slide-list [data-body-row="list"] ul {
+  gap: 0.65rem;
+}
+
+.slide-content-inner.slide-list [data-body-row="list"] li > span.rounded-full {
+  margin-top: 0.42rem;
+  width: 0.4rem;
+  height: 0.4rem;
+}
+
+.slide-main-rtl .slide-content-inner.slide-list .slide-type-body {
+  line-height: 1.72;
+}
+
+/* Stat: number first (flex order), title demoted; stat is the hero */
+.slide-content-inner.slide-stat [data-layout="unified"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.slide-content-inner.slide-stat [data-slot="body"] {
+  order: 1;
+}
+
+.slide-content-inner.slide-stat [data-slot="title"] {
+  order: 2;
+}
+
+.slide-content-inner.slide-stat [data-slot="subtitle"] {
+  order: 3;
+}
+
+.slide-content-inner.slide-stat [data-slot="cta"] {
+  order: 4;
+}
+
+.slide-content-inner.slide-stat .slide-type-stat {
+  font-size: clamp(2.15rem, 6.5vw + 0.85rem, 3.5rem);
+  line-height: 1.02;
+  font-weight: 800;
+  @apply text-brand-accent;
+}
+
+.slide-content-inner.slide-stat .slide-type-title {
+  font-size: clamp(1rem, 2.4vw + 0.45rem, 1.3rem);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  @apply text-brand-primary/60;
+}
+
+.slide-main-rtl .slide-content-inner.slide-stat .slide-type-stat {
+  line-height: 1.08;
+}
+
+.slide-main-rtl .slide-content-inner.slide-stat .slide-type-title {
+  line-height: 1.45;
+}
+
+/* Comparison: two labeled blocks + clear separator */
+.slide-content-inner.slide-comparison [data-body-row="compare"] {
+  gap: 0.625rem;
+  padding-block: 0.25rem;
+}
+
+.slide-content-inner.slide-comparison [data-body-row="compare"] > .h-px {
+  height: 2px;
+  margin-block: 0.35rem;
+  border-radius: 9999px;
+  @apply bg-brand-primary/18;
+}
+
+.slide-content-inner.slide-comparison [data-body-row="compare"] > .slide-type-body:nth-of-type(2),
+.slide-content-inner.slide-comparison [data-body-row="compare"] > .slide-type-body:nth-of-type(4) {
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.5rem;
+  background-color: rgb(248 250 252 / 0.92);
+  border: 1px solid rgb(226 232 240 / 0.9);
+}
+
+.slide-content-inner.slide-comparison [data-body-row="compare"] .slide-type-eyebrow {
+  @apply text-brand-primary/45;
+}
+
+/* CTA: final beat â€” extra air above button, dominant control */
+.slide-content-inner.slide-cta [data-slot="cta"] {
+  margin-top: 0.35rem;
+  padding-top: 0.85rem;
+}
+
+.slide-content-inner.slide-cta .slide-type-title {
+  font-size: clamp(1.35rem, 3.5vw + 0.3rem, 2.2rem);
+  line-height: 1.16;
+}
+
+.slide-content-inner.slide-cta .slide-unified-cta {
+  padding-top: 1.125rem;
+  padding-bottom: 1.125rem;
+  font-size: 1rem;
+  @apply border-brand-cta/40 bg-brand-cta/[0.1] text-brand-primary shadow-md;
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.06),
+    0 4px 14px -4px rgb(79 70 229 / 0.18);
+}
+
+.slide-content-inner.slide-cta .slide-unified-cta:hover {
+  @apply shadow-lg;
+}
+
+/* Arabic slide canvas: Tajawal + comfortable line metrics for RTL content */
+.slide-canvas-rtl {
+  font-family: var(--font-ar-sans);
+}
+
+.slide-canvas-rtl .font-display {
+  font-family: var(--font-ar-display);
+}
+
+.slide-ar-title {
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.slide-ar-body {
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+}
+
+.slide-content-container {
+  @apply flex-1 flex flex-col justify-center px-12 py-8 relative z-10;
+}
+
+/* Classic layout system (layoutType-driven) â€” matches original CarouselPro compositions */
+.slide-classic-scene {
+  @apply min-h-0 w-full max-w-full;
+}
+
+/* Fit wrapper: participates in flex shrink so classic layouts donâ€™t clip blindly */
+.slide-classic-fit {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: visible;
+  width: 100%;
+}
+
+.slide-content-container.slide-classic-scene {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Visible so wrapped text is never clipped; fit is enforced via slideFit scaling */
+  overflow: visible;
+}
+
+.slide-content-container.slide-classic-scene.is-compact-vertical {
+  @apply py-4 md:py-5;
+}
+
+.slide-classic-stat-num {
+  font-size: clamp(2.75rem, 8.5vw + 0.5rem, 5.5rem);
+  line-height: 0.95;
+}
+
+.slide-classic-stat-num--md {
+  font-size: clamp(2.25rem, 7vw + 0.35rem, 4.25rem);
+}
+
+.slide-classic-stat-num--sm {
+  font-size: clamp(1.75rem, 5.5vw + 0.25rem, 3.25rem);
+}
+
+.slide-classic-stat-num--xs {
+  font-size: clamp(1.35rem, 4vw + 0.15rem, 2.5rem);
+  line-height: 1;
+}
+
+.slide-main-rtl .slide-classic-hero-title,
+.slide-main-rtl .slide-classic-split-title,
+.slide-main-rtl .slide-classic-feature-title {
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+/* Reusable Component Classes */
+.glass-panel {
+  @apply rounded-[24px] border shadow-sm backdrop-blur-md;
+  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
+  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+}
+
+.brand-pill {
+  @apply inline-flex items-center gap-2 px-4 py-1.5 rounded-full border shadow-sm;
+  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
+  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+}
+
+.cta-button {
+  @apply px-12 py-5 rounded-[24px] font-black text-white flex items-center gap-3 text-xl shadow-xl transition-all hover:scale-105 active:scale-95;
+}
+
+.bg-accent-gradient {
+  background: var(--accent-gradient, linear-gradient(135deg, #6366F1, #4F46E5));
+}
+
+.feature-card {
+  @apply rounded-[24px] border shadow-sm flex items-center gap-4 p-6 transition-all;
+  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
+  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+}
+
+.comparison-card {
+  @apply p-8 rounded-[32px] border relative overflow-visible transition-all;
+}
+
+/* Background Accents */
+.bg-blob {
+  @apply absolute rounded-full blur-[60px] pointer-events-none;
+}
+
+.bg-grid {
+  @apply absolute inset-0 pointer-events-none;
+  background-image: radial-gradient(var(--grid-color, rgba(0,0,0,0.1)) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.bg-pattern {
+  @apply absolute inset-0 pointer-events-none;
+  background-image: linear-gradient(45deg, var(--pattern-color, rgba(0,0,0,0.05)) 25%, transparent 25%, transparent 50%, var(--pattern-color, rgba(0,0,0,0.05)) 50%, var(--pattern-color, rgba(0,0,0,0.05)) 75%, transparent 75%, transparent);
+  background-size: 40px 40px;
+}
+
+/* Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Export Specifics - Ensuring visibility */
+[data-exporting="true"] .glass-panel,
+[data-exporting="true"] .brand-pill,
+[data-exporting="true"] .feature-card,
+[data-exporting="true"] .comparison-card {
+  @apply backdrop-blur-none; /* Backdrop blur can be flaky in some export environments */
+  background-color: var(--glass-bg-export, rgba(255, 255, 255, 0.95));
+}
+
+[data-exporting="true"] .cta-button {
+  @apply backdrop-blur-none;
+  opacity: 1;
+}
+
+[data-exporting="true"] .slide-content-inner {
+  background: rgb(255 255 255 / 0.98) !important;
+  border-color: rgb(229 231 235 / 0.95) !important;
+  border-inline-start-width: 1px;
+  padding-inline-start: 1.2rem;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 12px 32px -16px rgb(15 23 42 / 0.1);
+}
+
+
+
+================================================================================
+FILE: src\lib\openai.ts
+================================================================================
+
+import OpenAI from "openai";
+import type {
+  AnalysisResult,
+  CarouselGoal,
+  ContentRole,
+  DeckPlan,
+  LayoutType,
+  PlannedSlideRow,
+  SlideContent,
+  SlideEmphasis,
+  SlideType,
+  ToneProfile,
+  TopicComplexity,
+} from "../types";
+import {
+  DECK_PLAN_JSON_SCHEMA,
+  buildFallbackDeckPlan,
+  formatDeckPlanForPrompt,
+  normalizeAndEnforceDeckPlan,
+} from "./deckPlan";
+import { ensureCompleteness } from "./ensureCompleteness";
+import { applyStructuralValidation } from "./slideStructuralValidation";
+
+const MODEL = "gpt-4o-mini";
+
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY ?? "",
+  dangerouslyAllowBrowser: true,
+});
+
+const CONTENT_ROLES: ContentRole[] = [
+  "hook",
+  "insight",
+  "list",
+  "comparison",
+  "stat",
+  "problem",
+  "solution",
+  "cta",
+];
+
+const EMPHASIS_VALUES: SlideEmphasis[] = [
+  "hook",
+  "title",
+  "body",
+  "balanced",
+  "close",
+];
+
+const LAYOUT_TYPES: LayoutType[] = [
+  "hero-typography",
+  "big-statement",
+  "split-content",
+  "feature-list",
+  "comparison",
+  "cta-final",
+];
+
+const SLIDE_TYPES: SlideType[] = [
+  "hook",
+  "problem",
+  "value",
+  "example",
+  "cta",
+];
+
+const ANALYSIS_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    topic: { type: "string" },
+    audience: { type: "string" },
+    goal: { type: "string" },
+    carouselGoal: {
+      type: "string",
+      enum: ["educational", "marketing", "storytelling", "awareness"],
+    },
+    complexity: {
+      type: "string",
+      enum: ["low", "medium", "high"],
+    },
+    toneProfile: {
+      type: "string",
+      enum: ["strong", "soft", "neutral"],
+    },
+    coreMessage: { type: "string" },
+    keyPoints: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 2,
+      maxItems: 7,
+    },
+    tone: { type: "string" },
+    ctaDirection: { type: "string" },
+  },
+  required: [
+    "topic",
+    "audience",
+    "goal",
+    "carouselGoal",
+    "complexity",
+    "toneProfile",
+    "coreMessage",
+    "keyPoints",
+    "tone",
+    "ctaDirection",
+  ],
+} as const;
+
+const SLIDE_ITEM_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    contentRole: { type: "string", enum: [...CONTENT_ROLES] },
+    emphasis: { type: "string", enum: [...EMPHASIS_VALUES] },
+    visualIntent: { type: "string" },
+    title: { type: "string" },
+    subtitle: { type: "string" },
+    body: {
+      type: "array",
+      items: { type: "string" },
+      maxItems: 4,
+    },
+    stats: { type: "string" },
+    ctaText: { type: "string" },
+  },
+  required: [
+    "contentRole",
+    "emphasis",
+    "visualIntent",
+    "title",
+    "subtitle",
+    "body",
+    "stats",
+    "ctaText",
+  ],
+} as const;
+
+function buildCarouselWrapperSchema(slideCount: number) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      slides: {
+        type: "array",
+        items: SLIDE_ITEM_SCHEMA,
+        minItems: slideCount,
+        maxItems: slideCount,
+      },
+    },
+    required: ["slides"],
+  };
+}
+
+function coerceCarouselGoal(raw: string): CarouselGoal {
+  const t = raw.trim().toLowerCase();
+  if (t === "educational" || t === "marketing" || t === "storytelling" || t === "awareness") {
+    return t;
+  }
+  return "awareness";
+}
+
+function coerceComplexity(raw: string): TopicComplexity {
+  const t = raw.trim().toLowerCase();
+  if (t === "low" || t === "high") return t;
+  return "medium";
+}
+
+function coerceToneProfile(raw: string): ToneProfile {
+  const t = raw.trim().toLowerCase();
+  if (t === "strong" || t === "soft" || t === "neutral") return t;
+  return "neutral";
+}
+
+function cleanJsonString(text: string): string {
+  const startIndex = text.indexOf("[");
+  const endIndex = text.lastIndexOf("]");
+
+  if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+    return text.substring(startIndex, endIndex + 1);
+  }
+
+  const objStartIndex = text.indexOf("{");
+  const objEndIndex = text.lastIndexOf("}");
+  if (objStartIndex !== -1 && objEndIndex !== -1 && objEndIndex > objStartIndex) {
+    return text.substring(objStartIndex, objEndIndex + 1);
+  }
+
+  return text.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
+}
+
+function coerceLayoutType(raw: string): LayoutType {
+  const t = raw.trim().toLowerCase();
+  if (LAYOUT_TYPES.includes(t as LayoutType)) return t as LayoutType;
+  return "hero-typography";
+}
+
+function coerceSlideType(raw: string): SlideType {
+  const t = raw.trim().toLowerCase();
+  if (SLIDE_TYPES.includes(t as SlideType)) return t as SlideType;
+  return "value";
+}
+
+function mapContentRoleToTypeLayout(role: ContentRole): {
+  type: SlideType;
+  layoutType: LayoutType;
+} {
+  switch (role) {
+    case "hook":
+      return { type: "hook", layoutType: "hero-typography" };
+    case "insight":
+      return { type: "value", layoutType: "big-statement" };
+    case "list":
+      return { type: "value", layoutType: "feature-list" };
+    case "comparison":
+      return { type: "value", layoutType: "comparison" };
+    case "stat":
+      return { type: "example", layoutType: "big-statement" };
+    case "problem":
+      return { type: "problem", layoutType: "hero-typography" };
+    case "solution":
+      return { type: "value", layoutType: "hero-typography" };
+    case "cta":
+      return { type: "cta", layoutType: "cta-final" };
+    default:
+      return { type: "value", layoutType: "hero-typography" };
+  }
+}
+
+function defaultEmphasisForRole(role: ContentRole): SlideEmphasis {
+  switch (role) {
+    case "hook":
+      return "hook";
+    case "stat":
+      return "balanced";
+    case "list":
+    case "comparison":
+      return "body";
+    case "cta":
+      return "close";
+    default:
+      return "title";
+  }
+}
+
+function coerceEmphasis(raw: string, role: ContentRole): SlideEmphasis {
+  const t = raw.trim().toLowerCase();
+  if (EMPHASIS_VALUES.includes(t as SlideEmphasis)) return t as SlideEmphasis;
+  return defaultEmphasisForRole(role);
+}
+
+function normalizeAnalysis(
+  parsed: Record<string, unknown>,
+  userInput: string
+): AnalysisResult {
+  const kp = parsed.keyPoints;
+  let keyPoints: string[] = [];
+  if (Array.isArray(kp)) {
+    keyPoints = kp.map((x) => String(x).trim()).filter(Boolean);
+  }
+  if (keyPoints.length === 0) {
+    keyPoints = [userInput.trim() || "Key idea", "Takeaway two"];
+  }
+  while (keyPoints.length < 2) {
+    keyPoints.push(`Idea ${keyPoints.length + 1}`);
+  }
+  keyPoints = keyPoints.slice(0, 7);
+
+  return {
+    topic: String(parsed.topic || userInput).trim().slice(0, 200) || userInput.substring(0, 50),
+    audience: String(parsed.audience || "General Audience").trim().slice(0, 200),
+    goal: String(parsed.goal || "Inform and engage").trim().slice(0, 200),
+    carouselGoal: coerceCarouselGoal(String(parsed.carouselGoal ?? "awareness")),
+    complexity: coerceComplexity(String(parsed.complexity ?? "medium")),
+    toneProfile: coerceToneProfile(String(parsed.toneProfile ?? "neutral")),
+    coreMessage: String(parsed.coreMessage || userInput).trim().slice(0, 500),
+    keyPoints,
+    tone: String(parsed.tone || "Professional").trim().slice(0, 120),
+    ctaDirection: String(parsed.ctaDirection || "Follow for more").trim().slice(0, 200),
+  };
+}
+
+function normalizeSlide(
+  raw: Record<string, unknown>,
+  index: number
+): Omit<SlideContent, "id"> {
+  const roleStr = String(raw.contentRole ?? "").trim().toLowerCase();
+  const hasStrategistRole =
+    roleStr && CONTENT_ROLES.includes(roleStr as ContentRole);
+
+  let type: SlideType;
+  let layoutType: LayoutType;
+  let contentRole: ContentRole | undefined;
+  let emphasis: SlideEmphasis | undefined;
+
+  if (hasStrategistRole) {
+    contentRole = roleStr as ContentRole;
+    const mapped = mapContentRoleToTypeLayout(contentRole);
+    type = mapped.type;
+    layoutType = mapped.layoutType;
+    emphasis = coerceEmphasis(String(raw.emphasis ?? ""), contentRole);
+  } else {
+    layoutType = coerceLayoutType(String(raw.layoutType ?? ""));
+    type = coerceSlideType(String(raw.type ?? ""));
+  }
+
+  let body: string[] = [];
+  if (Array.isArray(raw.body)) {
+    body = raw.body.map((x) => String(x).trim()).filter(Boolean);
+  }
+  body = body.slice(0, 4);
+
+  if (layoutType === "comparison") {
+    if (body.length < 2) {
+      body = [
+        body[0] || "Before",
+        body[1] || "After",
+      ];
+    }
+  }
+
+  const subtitleRaw = String(raw.subtitle ?? "").trim();
+  const statsRaw = String(raw.stats ?? "").trim();
+  const ctaRaw = String(raw.ctaText ?? "").trim();
+
+  const out: Omit<SlideContent, "id"> = {
+    type,
+    layoutType,
+    visualIntent: String(raw.visualIntent ?? "")
+      .trim()
+      .slice(0, 160) || `Slide ${index + 1} focus`,
+    title: String(raw.title ?? "Slide")
+      .trim()
+      .slice(0, 120) || "Slide",
+    subtitle: subtitleRaw ? subtitleRaw.slice(0, 200) : undefined,
+    body: body.length > 0 ? body : undefined,
+    stats: statsRaw ? statsRaw.slice(0, 80) : undefined,
+    ctaText: ctaRaw ? ctaRaw.slice(0, 120) : undefined,
+  };
+
+  if (contentRole) out.contentRole = contentRole;
+  if (emphasis) out.emphasis = emphasis;
+
+  return out;
+}
+
+/** Force slide roles/types to match the editorial plan (model drift guard). */
+function alignSlideToPlan(
+  slide: Omit<SlideContent, "id">,
+  planRow: PlannedSlideRow | undefined,
+  index: number
+): Omit<SlideContent, "id"> {
+  if (!planRow) return slide;
+  const role = planRow.contentRole;
+  const mapped = mapContentRoleToTypeLayout(role);
+  const vi = slide.visualIntent?.trim() || planRow.purpose.slice(0, 160);
+  return {
+    ...slide,
+    contentRole: role,
+    type: mapped.type,
+    layoutType: mapped.layoutType,
+    emphasis: defaultEmphasisForRole(role),
+    visualIntent: vi || `Slide ${index + 1} focus`,
+  };
+}
+
+function repairTruncatedJson(text: string): string {
+  let cleaned = cleanJsonString(text.trim() || "{}");
+
+  if (cleaned.startsWith("[") && !cleaned.endsWith("]")) {
+    const lastObjEnd = cleaned.lastIndexOf("}");
+    if (lastObjEnd !== -1) {
+      cleaned = cleaned.substring(0, lastObjEnd + 1) + "]";
+    } else {
+      cleaned = "[]";
+    }
+  }
+
+  if (cleaned.startsWith("{") && !cleaned.endsWith("}")) {
+    const lastObjEnd = cleaned.lastIndexOf("}");
+    if (lastObjEnd !== -1) {
+      cleaned = cleaned.substring(0, lastObjEnd + 1);
+    }
+  }
+
+  return cleaned;
+}
+
+function extractBalancedJson(input: string): string | null {
+  const trimmed = input.trim();
+  const openObj = trimmed.indexOf("{");
+  const openArr = trimmed.indexOf("[");
+  const preferObj =
+    openObj !== -1 && (openArr === -1 || openObj <= openArr);
+  const start = preferObj ? openObj : openArr;
+  const openChar = preferObj ? "{" : "[";
+  const closeChar = preferObj ? "}" : "]";
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (c === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (c === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (c === openChar) depth++;
+    else if (c === closeChar) {
+      depth--;
+      if (depth === 0) return trimmed.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function tryParseJson(text: string): unknown {
+  const t = text.trim();
+  try {
+    return JSON.parse(t);
+  } catch {
+    const balanced = extractBalancedJson(t);
+    if (balanced) {
+      return JSON.parse(balanced);
+    }
+    const repaired = repairTruncatedJson(t);
+    return JSON.parse(repaired);
+  }
+}
+
+function slidesFromParsed(parsed: unknown): Record<string, unknown>[] {
+  if (Array.isArray(parsed)) {
+    return parsed.filter((x) => x && typeof x === "object") as Record<
+      string,
+      unknown
+    >[];
+  }
+  if (parsed && typeof parsed === "object" && "slides" in parsed) {
+    const s = (parsed as { slides?: unknown }).slides;
+    if (Array.isArray(s)) {
+      return s.filter((x) => x && typeof x === "object") as Record<
+        string,
+        unknown
+      >[];
+    }
+  }
+  return [];
+}
+
+function ensureSlideCount(
+  slides: Omit<SlideContent, "id">[],
+  plan: DeckPlan,
+  analysis: AnalysisResult
+): Omit<SlideContent, "id">[] {
+  const target = plan.targetSlides;
+  let out = slides.slice();
+  if (out.length > target) {
+    out = out.slice(0, target);
+    return out.map((s, i) =>
+      alignSlideToPlan(s, plan.slides[i], i)
+    );
+  }
+  let i = out.length;
+  while (out.length < target) {
+    const row = plan.slides[i];
+    const kp = analysis.keyPoints[i % Math.max(analysis.keyPoints.length, 1)];
+    const isLast = i === target - 1;
+    const role = row?.contentRole ?? (isLast ? "cta" : "insight");
+    const raw = normalizeSlide(
+      {
+        contentRole: role,
+        emphasis: defaultEmphasisForRole(role),
+        visualIntent: row?.purpose.slice(0, 160) || "Continue the narrative",
+        title: (kp || analysis.topic || "Slide").slice(0, 80),
+        subtitle: "",
+        body:
+          role === "list" && kp
+            ? [kp]
+            : role === "cta"
+              ? []
+              : [],
+        stats: "",
+        ctaText: role === "cta" ? analysis.ctaDirection.slice(0, 80) : "",
+      },
+      i
+    );
+    out.push(alignSlideToPlan(raw, row ?? plan.slides[plan.slides.length - 1], i));
+    i++;
+  }
+  return out.map((s, i) => alignSlideToPlan(s, plan.slides[i], i));
+}
+
+async function analyzeInput(userInput: string): Promise<AnalysisResult> {
+  const prompt = `Analyze this input for an Instagram carousel. Be concise.
+
+User input:
+"${userInput}"
+
+Extract:
+- topic: max 10 words
+- audience: who this is for
+- goal: one short line (what success looks like)
+- carouselGoal: one of educational | marketing | storytelling | awareness
+- complexity: low (one simple idea, few angles) | medium | high (many angles or nuance)
+- toneProfile: strong | soft | neutral (delivery, not brand adjectives)
+- coreMessage: single most important takeaway
+- keyPoints: 2â€“7 distinct ideas or facts to cover (no empty strings)
+- tone: optional extra voice notes (e.g. professional, playful)
+- ctaDirection: what the last slide should ask the viewer to do
+
+Complexity hints:
+- low â†’ few key points, narrow topic
+- high â†’ broad topic, many key points, or deep explanation needed`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a strategic content analyst. Reply only with JSON matching the schema.",
+        },
+        { role: "user", content: prompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "carousel_analysis",
+          strict: true,
+          schema: ANALYSIS_JSON_SCHEMA,
+        },
+      },
+      max_tokens: 1024,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim() || "{}";
+    const cleaned = repairTruncatedJson(raw);
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    return normalizeAnalysis(parsed, userInput);
+  } catch (error) {
+    console.error("Analysis Error:", error);
+    return {
+      topic: userInput.substring(0, 50),
+      audience: "General Audience",
+      goal: "Inform and engage",
+      carouselGoal: "awareness",
+      complexity: "medium",
+      toneProfile: "neutral",
+      coreMessage: userInput,
+      keyPoints: [
+        userInput.trim() || "Idea one",
+        "Idea two",
+        "Idea three",
+      ],
+      tone: "Professional",
+      ctaDirection: "Follow for more",
+    };
+  }
+}
+
+async function createDeckPlan(
+  analysis: AnalysisResult,
+  userInput: string
+): Promise<DeckPlan> {
+  const prompt = `You are an editorial planner for Instagram carousels. Output JSON matching the schema exactly.
+
+USER INPUT (verbatim context):
+${JSON.stringify(userInput)}
+
+ANALYSIS:
+- Topic: ${analysis.topic}
+- Audience: ${analysis.audience}
+- Goal: ${analysis.goal}
+- Carousel goal: ${analysis.carouselGoal}
+- Complexity: ${analysis.complexity}
+- Tone profile: ${analysis.toneProfile}
+- Core message: ${analysis.coreMessage}
+- Key points: ${analysis.keyPoints.join(" | ")}
+- CTA direction: ${analysis.ctaDirection}
+
+TASK:
+1) Pick archetype that fits the brief.
+2) Set targetSlides between 3 and 12 (fewer for simple topics, more for deep/broad).
+3) allowedRoles: roles you intend to use (subset of hook, insight, list, comparison, stat, problem, solution, cta).
+4) forbiddenRoles: roles that must not appear (often empty).
+5) roleBudget: use hook_max 1, cta_max 1, list_max 2, stat_max 1, comparison_max 1 (server enforces).
+6) slides: exactly targetSlides items with index 0..targetSlides-1. First slide contentRole hook; last slide contentRole cta. Each row: clear purpose for the writer.
+
+Avoid redundant list/stat/comparison; diversify middle roles where it helps the story.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a content strategist. Reply only JSON matching the schema.",
+        },
+        { role: "user", content: prompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "deck_plan",
+          strict: true,
+          schema: DECK_PLAN_JSON_SCHEMA,
+        },
+      },
+      max_tokens: 2048,
+    });
+    const raw = completion.choices[0]?.message?.content?.trim() || "{}";
+    const parsed = tryParseJson(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return buildFallbackDeckPlan(analysis);
+    }
+    return normalizeAndEnforceDeckPlan(parsed as Record<string, unknown>);
+  } catch (e) {
+    console.warn("createDeckPlan failed, using fallback:", e);
+    return buildFallbackDeckPlan(analysis);
+  }
+}
+
+function buildSlidesUserPrompt(
+  analysis: AnalysisResult,
+  brandName: string,
+  plan: DeckPlan
+): string {
+  const keyPointsStr = analysis.keyPoints.join(" | ");
+  const slideCount = plan.targetSlides;
+  const planBlock = formatDeckPlanForPrompt(plan);
+
+  return `You are a senior carousel content strategist and editor. Build a story-driven Instagram carousel (light SaaS typography style â€” text only, no images).
+
+BRIEF
+Topic: ${analysis.topic}
+Audience: ${analysis.audience}
+Outcome (goal): ${analysis.goal}
+Carousel goal type: ${analysis.carouselGoal}
+Complexity: ${analysis.complexity}
+Tone profile: ${analysis.toneProfile}
+Core message: ${analysis.coreMessage}
+Key ideas to cover: ${keyPointsStr}
+Voice notes: ${analysis.tone}
+CTA direction (last slide): ${analysis.ctaDirection}
+Brand name (voice only): "${brandName}"
+
+EDITORIAL PLAN (mandatory â€” slide order and roles are fixed)
+${planBlock}
+
+SLIDE COUNT: Return exactly ${slideCount} slides in "slides". Not more, not fewer.
+
+STRICT ROLE MATCHING
+- Slide at array index i MUST have contentRole exactly equal to the plan row for slide i+1 (same order as SLIDE-BY-SLIDE PLAN).
+- Write copy that fulfills each row's purpose. visualIntent should echo the purpose in one short line.
+
+ROLE WRITING HINTS
+- hook: bold open; emphasis hook
+- list: 2â€“4 strings in body
+- comparison: exactly two strings in body (before/after or contrast)
+- stat: credible quant in stats field; emphasis balanced
+- cta: emphasis close; ctaText from CTA direction
+- insight, problem, solution: narrative clarity; emphasis usually title
+
+ANTI-PATTERNS
+- Do not change roles from the plan.
+- Do not repeat the same headline across slides.
+- Headlines: max ~6 words. Subtitles short when used.
+
+OUTPUT: JSON object { "slides": [ ... ] }. Each slide:
+- contentRole (enum), emphasis (enum), visualIntent (short), title, subtitle ("" if none), body (array, max 4 strings), stats ("" if none), ctaText ("" except CTA slide).
+
+Keep copy short to avoid truncation.`;
+}
+
+function parseSlidesFromModelText(
+  text: string,
+  analysis: AnalysisResult,
+  plan: DeckPlan
+): Omit<SlideContent, "id">[] | null {
+  try {
+    const parsed = tryParseJson(text);
+    const rawSlides = slidesFromParsed(parsed);
+    if (rawSlides.length === 0) return null;
+    const slides = rawSlides.map((row, i) =>
+      alignSlideToPlan(normalizeSlide(row, i), plan.slides[i], i)
+    );
+    return ensureSlideCount(slides, plan, analysis);
+  } catch (e) {
+    console.error("parseSlidesFromModelText:", e);
+    return null;
+  }
+}
+
+async function generateSlidesFromAnalysis(
+  analysis: AnalysisResult,
+  brandName: string,
+  plan: DeckPlan
+): Promise<Omit<SlideContent, "id">[]> {
+  const slideCount = plan.targetSlides;
+  const userPrompt = buildSlidesUserPrompt(analysis, brandName, plan);
+  const schema = buildCarouselWrapperSchema(slideCount);
+  const systemStrict = `You are a premium carousel designer. Output JSON only. Exactly ${slideCount} slides in "slides". Each slide must include contentRole and emphasis. Slide i contentRole MUST match the editorial plan row i. Enums must match the schema.`;
+  const systemLoose = `You are a premium carousel designer. Reply with a single JSON object: {"slides":[...]} with exactly ${slideCount} slides. Match each slide's contentRole to the provided plan in order. Each slide: contentRole, emphasis, visualIntent, title, subtitle, body (array), stats, ctaText. No markdown.`;
+
+  const runStructured = () =>
+    openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemStrict },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "carousel_slides",
+          strict: true,
+          schema,
+        },
+      },
+      max_tokens: 8192,
+    });
+
+  const runJsonObject = () =>
+    openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemLoose },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 8192,
+    });
+
+  let completion: Awaited<ReturnType<typeof runStructured>>;
+  try {
+    completion = await runStructured();
+  } catch (e) {
+    console.warn("json_schema request failed; using json_object:", e);
+    completion = await runJsonObject();
+  }
+
+  const content = completion.choices[0]?.message?.content?.trim() ?? "";
+  if (completion.choices[0]?.finish_reason === "length") {
+    console.warn("Slides response may be truncated (structured output).");
+  }
+
+  let slides = content ? parseSlidesFromModelText(content, analysis, plan) : null;
+
+  if (!slides) {
+    console.warn("Slides parse failed; retrying with json_object mode.");
+    const fb = await runJsonObject();
+    const fbText = fb.choices[0]?.message?.content?.trim() ?? "";
+    slides = fbText ? parseSlidesFromModelText(fbText, analysis, plan) : null;
+  }
+
+  if (!slides) {
+    throw new Error(
+      "The AI returned slides we could not parse. Please try again."
+    );
+  }
+
+  return slides;
+}
+
+export async function generateCarouselContent(
+  userInput: string,
+  brandName: string
+): Promise<SlideContent[]> {
+  const maxRetries = 2;
+  let lastError: unknown = null;
+
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const truncatedInput = userInput.substring(0, 5000);
+      const analysis = await analyzeInput(truncatedInput);
+      const plan = await createDeckPlan(analysis, truncatedInput);
+      const rawSlides = await generateSlidesFromAnalysis(analysis, brandName, plan);
+      const validated = applyStructuralValidation(rawSlides, analysis);
+      const slides = ensureCompleteness(validated, plan, analysis);
+
+      return slides.map((slide, index) => ({
+        ...slide,
+        id: `slide-${index}`,
+      }));
+    } catch (error) {
+      console.error(`Attempt ${i + 1} failed:`, error);
+      lastError = error;
+      if (i < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to generate carousel after multiple attempts.");
+}
+
+
+
+================================================================================
+FILE: src\lib\deckPlan.ts
+================================================================================
+
+import type {
+  AnalysisResult,
+  ContentRole,
+  DeckArchetype,
+  DeckPlan,
+  DeckRoleBudget,
+  PlannedSlideRow,
+} from "../types";
+
+export const DECK_PLAN_VERSION = "deck-plan.v1" as const;
+
+/** Phase 1 product caps â€” enforced after every plan parse. */
+export const DEFAULT_ROLE_BUDGET: DeckRoleBudget = {
+  hook_max: 1,
+  cta_max: 1,
+  list_max: 2,
+  stat_max: 1,
+  comparison_max: 1,
+};
+
+const CONTENT_ROLES_LIST: ContentRole[] = [
+  "hook",
+  "insight",
+  "list",
+  "comparison",
+  "stat",
+  "problem",
+  "solution",
+  "cta",
+];
+
+const ARCHETYPE_LIST: DeckArchetype[] = [
+  "micro-tip",
+  "educational",
+  "myth-busting",
+  "story",
+  "breakdown",
+  "promotion",
+];
+
+/** OpenAI strict JSON schema for the planning pass. */
+export const DECK_PLAN_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    version: { type: "string", enum: [DECK_PLAN_VERSION] },
+    archetype: { type: "string", enum: [...ARCHETYPE_LIST] },
+    targetSlides: { type: "integer", minimum: 3, maximum: 12 },
+    allowedRoles: {
+      type: "array",
+      items: { type: "string", enum: [...CONTENT_ROLES_LIST] },
+    },
+    forbiddenRoles: {
+      type: "array",
+      items: { type: "string", enum: [...CONTENT_ROLES_LIST] },
+    },
+    roleBudget: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        hook_max: { type: "integer" },
+        cta_max: { type: "integer" },
+        list_max: { type: "integer" },
+        stat_max: { type: "integer" },
+        comparison_max: { type: "integer" },
+      },
+      required: [
+        "hook_max",
+        "cta_max",
+        "list_max",
+        "stat_max",
+        "comparison_max",
+      ],
+    },
+    slides: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          index: { type: "integer", minimum: 0 },
+          contentRole: { type: "string", enum: [...CONTENT_ROLES_LIST] },
+          purpose: { type: "string" },
+        },
+        required: ["index", "contentRole", "purpose"],
+      },
+      minItems: 3,
+      maxItems: 12,
+    },
+  },
+  required: [
+    "version",
+    "archetype",
+    "targetSlides",
+    "allowedRoles",
+    "forbiddenRoles",
+    "roleBudget",
+    "slides",
+  ],
+} as const;
+
+function coerceContentRole(raw: string): ContentRole {
+  const t = raw.trim().toLowerCase();
+  return CONTENT_ROLES_LIST.includes(t as ContentRole)
+    ? (t as ContentRole)
+    : "insight";
+}
+
+function coerceArchetype(raw: string): DeckArchetype {
+  const t = raw.trim().toLowerCase();
+  return ARCHETYPE_LIST.includes(t as DeckArchetype)
+    ? (t as DeckArchetype)
+    : "educational";
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+function demoteExcess(
+  slides: PlannedSlideRow[],
+  role: ContentRole,
+  max: number
+): void {
+  let n = 0;
+  for (let i = 0; i < slides.length; i++) {
+    if (slides[i].contentRole !== role) continue;
+    n++;
+    if (n > max) slides[i].contentRole = "insight";
+  }
+}
+
+function resizeSlidesToTarget(
+  slides: PlannedSlideRow[],
+  target: number
+): PlannedSlideRow[] {
+  const t = clamp(target, 3, 12);
+  if (slides.length === 0) {
+    return Array.from({ length: t }, (_, i) => ({
+      index: i,
+      contentRole:
+        i === 0 ? "hook" : i === t - 1 ? "cta" : ("insight" as ContentRole),
+      purpose:
+        i === 0
+          ? "Hook the reader"
+          : i === t - 1
+            ? "Close with a clear action"
+            : `Develop the narrative (${i + 1})`,
+    }));
+  }
+  if (slides.length >= t) {
+    const out = slides.slice(0, t).map((s, i) => ({
+      ...s,
+      index: i,
+      purpose: String(s.purpose || "").slice(0, 300) || `Slide ${i + 1}`,
+      contentRole: coerceContentRole(String(s.contentRole)),
+    }));
+    return out;
+  }
+  const out = slides.map((s, i) => ({
+    ...s,
+    index: i,
+    purpose: String(s.purpose || "").slice(0, 300) || `Slide ${i + 1}`,
+    contentRole: coerceContentRole(String(s.contentRole)),
+  }));
+  while (out.length < t) {
+    const i = out.length;
+    const isLast = i === t - 1;
+    out.push({
+      index: i,
+      contentRole: isLast ? "cta" : "insight",
+      purpose: isLast ? "Call to action" : `Bridge idea ${i + 1}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * Parse model output, resize to targetSlides, enforce hook/cta boundaries,
+ * role budgets, forbidden/allowed roles. Idempotent.
+ */
+export function normalizeAndEnforceDeckPlan(raw: Record<string, unknown>): DeckPlan {
+  const archetype = coerceArchetype(String(raw.archetype ?? "educational"));
+  let targetSlides = clamp(
+    Number(raw.targetSlides) || 7,
+    3,
+    12
+  );
+
+  const allowedRaw = Array.isArray(raw.allowedRoles) ? raw.allowedRoles : [];
+  const allowedRoles: ContentRole[] = allowedRaw.length
+    ? allowedRaw.map((x) => coerceContentRole(String(x)))
+    : [...CONTENT_ROLES_LIST];
+
+  const forbiddenRaw = Array.isArray(raw.forbiddenRoles)
+    ? raw.forbiddenRoles
+    : [];
+  const forbiddenRoles = forbiddenRaw.map((x) =>
+    coerceContentRole(String(x))
+  );
+
+  const slidesRaw = Array.isArray(raw.slides) ? raw.slides : [];
+  let slides: PlannedSlideRow[] = slidesRaw.map((item, i) => {
+    const o = item as Record<string, unknown>;
+    return {
+      index: Number(o.index) >= 0 ? Number(o.index) : i,
+      contentRole: coerceContentRole(String(o.contentRole ?? "insight")),
+      purpose: String(o.purpose ?? "").slice(0, 300) || `Slide ${i + 1}`,
+    };
+  });
+  slides.sort((a, b) => a.index - b.index);
+
+  slides = resizeSlidesToTarget(slides, targetSlides);
+  targetSlides = slides.length;
+
+  slides.forEach((s, i) => {
+    s.index = i;
+  });
+
+  const budget = { ...DEFAULT_ROLE_BUDGET };
+
+  slides[0].contentRole = "hook";
+  slides[targetSlides - 1].contentRole = "cta";
+
+  for (let i = 1; i < targetSlides; i++) {
+    if (slides[i].contentRole === "hook") slides[i].contentRole = "insight";
+  }
+  for (let i = 0; i < targetSlides - 1; i++) {
+    if (slides[i].contentRole === "cta") slides[i].contentRole = "insight";
+  }
+
+  demoteExcess(slides, "list", budget.list_max);
+  demoteExcess(slides, "stat", budget.stat_max);
+  demoteExcess(slides, "comparison", budget.comparison_max);
+
+  const forbidden = new Set(forbiddenRoles);
+  const allowed = new Set(allowedRoles);
+
+  const applyForbiddenAllowed = () => {
+    for (const s of slides) {
+      if (forbidden.has(s.contentRole)) s.contentRole = "insight";
+      if (!allowed.has(s.contentRole)) s.contentRole = "insight";
+    }
+    slides[0].contentRole = "hook";
+    slides[targetSlides - 1].contentRole = "cta";
+    for (let i = 1; i < targetSlides; i++) {
+      if (slides[i].contentRole === "hook") slides[i].contentRole = "insight";
+    }
+    for (let i = 0; i < targetSlides - 1; i++) {
+      if (slides[i].contentRole === "cta") slides[i].contentRole = "insight";
+    }
+  };
+
+  applyForbiddenAllowed();
+  demoteExcess(slides, "list", budget.list_max);
+  demoteExcess(slides, "stat", budget.stat_max);
+  demoteExcess(slides, "comparison", budget.comparison_max);
+
+  return {
+    version: DECK_PLAN_VERSION,
+    archetype,
+    targetSlides,
+    allowedRoles: [...new Set(allowedRoles)],
+    forbiddenRoles: [...new Set(forbiddenRoles)],
+    roleBudget: budget,
+    slides,
+  };
+}
+
+/** Deterministic plan when the planning API fails. */
+export function buildFallbackDeckPlan(analysis: AnalysisResult): DeckPlan {
+  const n =
+    analysis.complexity === "low"
+      ? 5
+      : analysis.complexity === "high"
+        ? 9
+        : 7;
+  const target = clamp(n, 3, 12);
+  const slides: PlannedSlideRow[] = [];
+  for (let i = 0; i < target; i++) {
+    let role: ContentRole;
+    if (i === 0) role = "hook";
+    else if (i === target - 1) role = "cta";
+    else if (i === Math.floor(target / 2)) role = "list";
+    else if (i === 1) role = "insight";
+    else role = "insight";
+    slides.push({
+      index: i,
+      contentRole: role,
+      purpose:
+        i === 0
+          ? "Pattern interrupt â€” state the tension"
+          : i === target - 1
+            ? analysis.ctaDirection.slice(0, 200)
+            : role === "list"
+              ? "Deliver structured takeaways from the brief"
+              : "Explain one beat of the core message",
+    });
+  }
+  return normalizeAndEnforceDeckPlan({
+    version: DECK_PLAN_VERSION,
+    archetype: "educational",
+    targetSlides: target,
+    allowedRoles: [...CONTENT_ROLES_LIST],
+    forbiddenRoles: [],
+    roleBudget: { ...DEFAULT_ROLE_BUDGET },
+    slides,
+  });
+}
+
+export function formatDeckPlanForPrompt(plan: DeckPlan): string {
+  const lines = plan.slides.map(
+    (s) =>
+      `  Slide ${s.index + 1}: contentRole MUST be "${s.contentRole}" â€” ${s.purpose}`
+  );
+  return [
+    `ARCHETYPE: ${plan.archetype}`,
+    `TARGET SLIDES: ${plan.targetSlides} (exactly)`,
+    `ALLOWED ROLES: ${plan.allowedRoles.join(", ")}`,
+    plan.forbiddenRoles.length
+      ? `FORBIDDEN ROLES: ${plan.forbiddenRoles.join(", ")}`
+      : "FORBIDDEN ROLES: (none)",
+    `ROLE BUDGET (do not exceed across deck): hookâ‰¤${plan.roleBudget.hook_max} ctaâ‰¤${plan.roleBudget.cta_max} listâ‰¤${plan.roleBudget.list_max} statâ‰¤${plan.roleBudget.stat_max} comparisonâ‰¤${plan.roleBudget.comparison_max}`,
+    "SLIDE-BY-SLIDE PLAN:",
+    ...lines,
+  ].join("\n");
+}
+
+
+
+================================================================================
+FILE: src\lib\ensureCompleteness.ts
+================================================================================
+
+import type { AnalysisResult, DeckPlan, PlannedSlideRow, SlideContent } from "../types";
+import {
+  applyRoleMetadata,
+  bodyItemCount,
+  defaultCtaForGoal,
+  isStatMeaningful,
+} from "./slideStructuralValidation";
+
+function normTitle(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function usedPhrases(slides: Omit<SlideContent, "id">[]): Set<string> {
+  const u = new Set<string>();
+  for (const s of slides) {
+    if (s.title?.trim()) u.add(normTitle(s.title));
+    for (const line of s.body ?? []) {
+      if (String(line).trim()) u.add(normTitle(String(line)));
+    }
+  }
+  return u;
+}
+
+function uniqueLine(
+  candidate: string,
+  used: Set<string>,
+  fallback: string
+): string {
+  const c = candidate.trim().slice(0, 160);
+  if (!c) return fallback.slice(0, 160);
+  if (!used.has(normTitle(c))) return c;
+  const f = fallback.trim().slice(0, 160);
+  return f || c;
+}
+
+function pickKeyPointsForList(
+  analysis: AnalysisResult,
+  slideIndex: number,
+  used: Set<string>
+): string[] {
+  const kp = analysis.keyPoints.map((x) => String(x).trim()).filter(Boolean);
+  const topic = analysis.topic.trim() || "this";
+  const start = slideIndex % Math.max(kp.length, 1);
+  const out: string[] = [];
+  for (let k = 0; k < 4 && out.length < 3; k++) {
+    const line = kp.length ? kp[(start + k) % kp.length] : `${topic}: angle ${k + 1}`;
+    if (!used.has(normTitle(line))) out.push(line.slice(0, 120));
+  }
+  while (out.length < 2) {
+    const extra =
+      analysis.coreMessage.trim().slice(0, 100) ||
+      `Tie back to ${topic}`;
+    out.push(uniqueLine(extra, used, `Revisit: ${topic}`).slice(0, 120));
+  }
+  return out.slice(0, 4);
+}
+
+function synthesizeSlide(
+  row: PlannedSlideRow,
+  analysis: AnalysisResult,
+  prior: Omit<SlideContent, "id">[],
+  slideIndex: number
+): Omit<SlideContent, "id"> {
+  const used = usedPhrases(prior);
+  const topic = analysis.topic.trim() || "your topic";
+  const core = analysis.coreMessage.trim();
+  const purpose = row.purpose.trim().slice(0, 200);
+  const kp = analysis.keyPoints.map((x) => String(x).trim()).filter(Boolean);
+  const k0 = kp[0] ?? topic;
+  const k1 = kp[1] ?? `${topic} â€” second angle`;
+  const k2 =
+    kp[2] ??
+    (analysis.goal.trim().slice(0, 80) || `${topic} â€” next step`);
+
+  const baseVisual = purpose || `Slide ${slideIndex + 1}`;
+
+  let draft: Omit<SlideContent, "id">;
+
+  switch (row.contentRole) {
+    case "hook": {
+      const title = uniqueLine(
+        `${topic}: the part everyone skips`,
+        used,
+        `Why ${topic} stalls`
+      );
+      draft = {
+        type: "hook",
+        layoutType: "hero-typography",
+        visualIntent: baseVisual,
+        title: title.slice(0, 120),
+        body: core ? [core.slice(0, 140)] : undefined,
+      };
+      break;
+    }
+    case "problem": {
+      const title = uniqueLine(
+        `Where ${topic} breaks first`,
+        used,
+        `The hidden cost of ${topic}`
+      );
+      draft = {
+        type: "problem",
+        layoutType: "hero-typography",
+        visualIntent: baseVisual,
+        title: title.slice(0, 120),
+        body: [uniqueLine(k0, used, `Signal: ${k0}`).slice(0, 140)],
+      };
+      break;
+    }
+    case "list": {
+      const lines = pickKeyPointsForList(analysis, slideIndex, used);
+      draft = {
+        type: "value",
+        layoutType: "feature-list",
+        visualIntent: baseVisual,
+        title: uniqueLine(
+          `What to fix: ${topic}`,
+          used,
+          `Checklist from your brief`
+        ).slice(0, 120),
+        body: lines,
+      };
+      break;
+    }
+    case "comparison": {
+      const a = uniqueLine(`Without: ${k0}`, used, `Before: ${k0}`).slice(
+        0,
+        120
+      );
+      const b = uniqueLine(`With: ${k1}`, used, `After: ${k1}`).slice(0, 120);
+      draft = {
+        type: "value",
+        layoutType: "comparison",
+        visualIntent: baseVisual,
+        title: uniqueLine(`Two paths on ${topic}`, used, "Contrast").slice(
+          0,
+          120
+        ),
+        body: [a, b],
+      };
+      break;
+    }
+    case "stat": {
+      const n = Math.max(2, Math.min(9, kp.length + 1));
+      draft = {
+        type: "example",
+        layoutType: "big-statement",
+        visualIntent: baseVisual,
+        title: uniqueLine(
+          `${n} signals from your brief`,
+          used,
+          "One number to watch"
+        ).slice(0, 120),
+        stats: `${n} levers`,
+        body: core ? [core.slice(0, 120)] : [k0.slice(0, 120)],
+      };
+      break;
+    }
+    case "solution": {
+      draft = {
+        type: "value",
+        layoutType: "hero-typography",
+        visualIntent: baseVisual,
+        title: uniqueLine(
+          `What to do instead â€” ${topic}`,
+          used,
+          "Shift the approach"
+        ).slice(0, 120),
+        body: [
+          uniqueLine(k1, used, analysis.goal).slice(0, 140),
+          uniqueLine(k2, used, k0).slice(0, 140),
+        ].filter(Boolean),
+      };
+      break;
+    }
+    case "cta": {
+      const ctaText =
+        analysis.ctaDirection.trim() ||
+        defaultCtaForGoal(analysis.carouselGoal);
+      draft = {
+        type: "cta",
+        layoutType: "cta-final",
+        visualIntent: baseVisual,
+        title: uniqueLine(
+          `Next step on ${topic}`,
+          used,
+          "Your move"
+        ).slice(0, 120),
+        ctaText: ctaText.slice(0, 120),
+      };
+      break;
+    }
+    case "insight":
+    default: {
+      const chunk =
+        core.split(/[.;\n]/).map((x) => x.trim()).filter(Boolean)[
+          slideIndex % 3
+        ] || core.slice(0, 120);
+      draft = {
+        type: "value",
+        layoutType: "big-statement",
+        visualIntent: baseVisual,
+        title: uniqueLine(
+          purpose.slice(0, 60) || `Why this matters: ${topic}`,
+          used,
+          `Reframe: ${k0}`
+        ).slice(0, 120),
+        body: chunk
+          ? [chunk.slice(0, 160)]
+          : [uniqueLine(k0, used, topic).slice(0, 160)],
+      };
+      break;
+    }
+  }
+
+  return applyRoleMetadata(draft, row.contentRole);
+}
+
+function ensureClosingCta(
+  slide: Omit<SlideContent, "id"> | undefined,
+  row: PlannedSlideRow,
+  analysis: AnalysisResult
+): Omit<SlideContent, "id"> {
+  const ctaFallback =
+    analysis.ctaDirection.trim() || defaultCtaForGoal(analysis.carouselGoal);
+  const ctaText = String(slide?.ctaText ?? "").trim() || ctaFallback;
+  const title =
+    String(slide?.title ?? "").trim().slice(0, 120) ||
+    `Next step â€” ${analysis.topic.trim().slice(0, 40) || "start here"}`;
+  const draft: Omit<SlideContent, "id"> = {
+    ...slide,
+    type: "cta",
+    layoutType: "cta-final",
+    visualIntent:
+      row.purpose.trim().slice(0, 160) ||
+      slide?.visualIntent ||
+      "Close the deck",
+    title,
+    ctaText: ctaText.slice(0, 120),
+    body: undefined,
+    stats: undefined,
+    subtitle: slide?.subtitle,
+  };
+  return applyRoleMetadata(draft, "cta");
+}
+
+/** Keep plan roles structurally valid without a second validation pass (no merges). */
+function enforcePlanBodies(
+  out: Omit<SlideContent, "id">[],
+  plan: DeckPlan,
+  analysis: AnalysisResult
+): void {
+  const topic = analysis.topic.trim() || "this topic";
+  const kp = analysis.keyPoints.map((x) => String(x).trim()).filter(Boolean);
+  const k0 = kp[0] ?? topic;
+  const k1 = kp[1] ?? `${topic} â€” sharper angle`;
+
+  for (let i = 0; i < out.length; i++) {
+    if (i === out.length - 1) continue;
+    const row = plan.slides[i];
+    if (!row) continue;
+    const s = out[i];
+    const used = usedPhrases(out);
+
+    if (row.contentRole === "list" && bodyItemCount(s) < 2) {
+      const lines = pickKeyPointsForList(analysis, i, used);
+      out[i] = { ...s, body: lines };
+      continue;
+    }
+    if (row.contentRole === "comparison" && bodyItemCount(s) !== 2) {
+      const a = uniqueLine(`Without: ${k0}`, used, `Before: ${k0}`).slice(
+        0,
+        120
+      );
+      const b = uniqueLine(`With: ${k1}`, used, `After: ${k1}`).slice(0, 120);
+      out[i] = { ...s, body: [a, b] };
+      continue;
+    }
+    if (row.contentRole === "stat" && !isStatMeaningful(s.stats)) {
+      const n = Math.max(2, Math.min(9, kp.length + 1));
+      out[i] = {
+        ...s,
+        stats: `${n} levers`,
+        body:
+          bodyItemCount(s) > 0
+            ? s.body
+            : [
+                (analysis.coreMessage.trim() || k0).slice(0, 120),
+              ],
+      };
+    }
+  }
+}
+
+/**
+ * Guarantees slides.length === plan.targetSlides and a CTA on the last slide.
+ * Deterministic synthesis for gaps (no LLM). Run after structural validation.
+ */
+export function ensureCompleteness(
+  slides: Omit<SlideContent, "id">[],
+  plan: DeckPlan,
+  analysis: AnalysisResult
+): Omit<SlideContent, "id">[] {
+  const T = plan.targetSlides;
+  if (T < 1) {
+    return slides.slice();
+  }
+
+  let out = slides.slice(0, T);
+
+  while (out.length < T) {
+    const idx = out.length;
+    const row =
+      plan.slides[idx] ??
+      ({
+        index: idx,
+        contentRole: "insight",
+        purpose: `Develop slide ${idx + 1} from the brief`,
+      } as PlannedSlideRow);
+    out.push(synthesizeSlide(row, analysis, out, idx));
+  }
+
+  const lastRow =
+    plan.slides[T - 1] ??
+    ({
+      index: T - 1,
+      contentRole: "cta",
+      purpose: "Close with a clear action",
+    } as PlannedSlideRow);
+  out[T - 1] = ensureClosingCta(out[T - 1], lastRow, analysis);
+
+  for (let i = 0; i < T - 1; i++) {
+    const row =
+      plan.slides[i] ??
+      ({
+        index: i,
+        contentRole: "insight",
+        purpose: `Slide ${i + 1}`,
+      } as PlannedSlideRow);
+    if (out[i].contentRole !== row.contentRole) {
+      out[i] = applyRoleMetadata(out[i], row.contentRole);
+    }
+  }
+
+  enforcePlanBodies(out, plan, analysis);
+
+  return out;
+}
+
+
+
+================================================================================
+FILE: src\lib\slideStructuralValidation.ts
+================================================================================
+
+import type {
+  AnalysisResult,
+  CarouselGoal,
+  ContentRole,
+  LayoutType,
+  SlideContent,
+  SlideEmphasis,
+  SlideType,
+} from "../types";
+
+export function applyRoleMetadata(
+  slide: Omit<SlideContent, "id">,
+  role: ContentRole
+): Omit<SlideContent, "id"> {
+  const mapped = mapRoleToTypeLayout(role);
+  return {
+    ...slide,
+    contentRole: role,
+    type: mapped.type,
+    layoutType: mapped.layoutType,
+    emphasis: defaultEmphasisForRole(role),
+  };
+}
+
+function mapRoleToTypeLayout(role: ContentRole): {
+  type: SlideType;
+  layoutType: LayoutType;
+} {
+  switch (role) {
+    case "hook":
+      return { type: "hook", layoutType: "hero-typography" };
+    case "insight":
+      return { type: "value", layoutType: "big-statement" };
+    case "list":
+      return { type: "value", layoutType: "feature-list" };
+    case "comparison":
+      return { type: "value", layoutType: "comparison" };
+    case "stat":
+      return { type: "example", layoutType: "big-statement" };
+    case "problem":
+      return { type: "problem", layoutType: "hero-typography" };
+    case "solution":
+      return { type: "value", layoutType: "hero-typography" };
+    case "cta":
+      return { type: "cta", layoutType: "cta-final" };
+    default:
+      return { type: "value", layoutType: "big-statement" };
+  }
+}
+
+function defaultEmphasisForRole(role: ContentRole): SlideEmphasis {
+  switch (role) {
+    case "hook":
+      return "hook";
+    case "stat":
+      return "balanced";
+    case "list":
+    case "comparison":
+      return "body";
+    case "cta":
+      return "close";
+    default:
+      return "title";
+  }
+}
+
+export function bodyItemCount(slide: Omit<SlideContent, "id">): number {
+  if (!slide.body?.length) return 0;
+  return slide.body.filter((s) => String(s).trim().length > 0).length;
+}
+
+/** Non-empty and contains a digit (filters prose-only "stats" placeholders). */
+export function isStatMeaningful(stats: string | undefined): boolean {
+  const s = String(stats ?? "").trim();
+  if (s.length < 2) return false;
+  return /\d/.test(s);
+}
+
+export function defaultCtaForGoal(goal: CarouselGoal): string {
+  switch (goal) {
+    case "educational":
+      return "Follow for more tips like this.";
+    case "marketing":
+      return "Tap through â€” link in bio to get started.";
+    case "storytelling":
+      return "Follow for the next part of the story.";
+    case "awareness":
+      return "Share this if it resonated.";
+    default:
+      return "Follow for more.";
+  }
+}
+
+function isTitleOnlyWeakSlide(slide: Omit<SlideContent, "id">): boolean {
+  const role = slide.contentRole;
+  if (role === "hook") return false;
+  if (role === "cta") return false;
+
+  const title = String(slide.title ?? "").trim();
+  if (!title) return false;
+
+  const sub = String(slide.subtitle ?? "").trim();
+  if (sub.length > 0) return false;
+
+  if (bodyItemCount(slide) > 0) return false;
+
+  const stats = String(slide.stats ?? "").trim();
+  if (stats.length > 0 && isStatMeaningful(stats)) return false;
+
+  return true;
+}
+
+function mergeWeakIntoPrevious(
+  prev: Omit<SlideContent, "id">,
+  weak: Omit<SlideContent, "id">
+): void {
+  const incoming = String(weak.title ?? "").trim();
+  if (!incoming) return;
+
+  const existing = prev.body?.filter((x) => String(x).trim()) ?? [];
+  if (existing.length > 0) {
+    prev.body = [...existing, incoming].slice(0, 4);
+  } else {
+    const head = String(prev.title ?? "").trim();
+    prev.body = [head, incoming].filter(Boolean).slice(0, 4);
+  }
+
+  if (!prev.subtitle && weak.visualIntent?.trim()) {
+    prev.subtitle = weak.visualIntent.trim().slice(0, 200);
+  }
+}
+
+/** List / comparison / stat must match content shape or become insight. */
+function applyRoleShapeFixes(out: Omit<SlideContent, "id">[]): void {
+  for (let i = 0; i < out.length; i++) {
+    const slide = out[i];
+    const role = slide.contentRole;
+    if (!role) continue;
+
+    if (role === "list" && bodyItemCount(slide) < 2) {
+      out[i] = { ...applyRoleMetadata(slide, "insight"), stats: undefined };
+      continue;
+    }
+    if (role === "comparison" && bodyItemCount(slide) !== 2) {
+      out[i] = { ...applyRoleMetadata(slide, "insight"), stats: undefined };
+      continue;
+    }
+    if (role === "stat" && !isStatMeaningful(slide.stats)) {
+      out[i] = { ...applyRoleMetadata(slide, "insight"), stats: undefined };
+    }
+  }
+}
+
+/**
+ * Structural validation after model generation: fix roles vs content shape,
+ * ensure CTA text exists, collapse title-only filler slides (no LLM calls).
+ */
+export function applyStructuralValidation(
+  slides: Omit<SlideContent, "id">[],
+  analysis: AnalysisResult
+): Omit<SlideContent, "id">[] {
+  const out = slides.map((s) => ({ ...s }));
+
+  applyRoleShapeFixes(out);
+
+  for (let i = 0; i < out.length; i++) {
+    const slide = out[i];
+    if (slide.contentRole !== "cta") continue;
+    const cta = String(slide.ctaText ?? "").trim();
+    if (cta.length > 0) continue;
+    const fallback =
+      analysis.ctaDirection.trim() || defaultCtaForGoal(analysis.carouselGoal);
+    out[i] = {
+      ...slide,
+      ctaText: fallback.slice(0, 120),
+    };
+  }
+
+  const merged: Omit<SlideContent, "id">[] = [];
+  for (let i = 0; i < out.length; i++) {
+    const slide = out[i];
+    if (!isTitleOnlyWeakSlide(slide)) {
+      merged.push(slide);
+      continue;
+    }
+
+    if (merged.length === 0) {
+      merged.push(applyRoleMetadata(slide, "insight"));
+      continue;
+    }
+
+    const prev = merged[merged.length - 1];
+    if (prev.contentRole === "cta") {
+      merged.push(applyRoleMetadata(slide, "insight"));
+      continue;
+    }
+
+    mergeWeakIntoPrevious(prev, slide);
+  }
+
+  applyRoleShapeFixes(merged);
+
+  return merged;
+}
+
+
+
+================================================================================
+FILE: src\components\slides\slideFit.invariants.ts
+================================================================================
+
+/**
+ * Worst-case checks for slide-fit heuristics (run: `npm run test:fit`).
+ * Verifies monotonic scaling and floor sizes â€” not DOM measurement.
+ */
+import type { SlideContent } from "../../types";
+import {
+  bodyLineClass,
+  comparisonBodyClass,
+  ctaButtonPaddingClass,
+  ctaTitlePixelSize,
+  scaledLayoutTitle,
+  scaledPixelValue,
+  subtitleClass,
+  totalTextLength,
+  verticalDensity,
+  wrapLoadFactor,
+} from "./slideFit";
+
+function px(s: string): number {
+  return Number.parseFloat(s.replace("px", ""));
+}
+
+function assert(cond: boolean, msg: string): void {
+  if (!cond) throw new Error(`slideFit invariant failed: ${msg}`);
+}
+
+/** Longest plausible generated strings â€” stress scaling + density. */
+const LONG_TITLE = "word ".repeat(45).trim();
+const LONG_SUB =
+  "Supporting line that keeps going with more detail than a typical subtitle should carry. ".repeat(
+    3
+  );
+const LONG_COMPARE =
+  "Before or after column text that must wrap many times without overflowing the comparison card area in portrait layout. ".repeat(
+    2
+  );
+const LONG_CTA =
+  "Get started with this action label that is unreasonably long for a button but must still fit visually. ".repeat(
+    2
+  );
+
+const WORST_SLIDES: SlideContent[] = [
+  {
+    id: "w-hero",
+    type: "hook",
+    layoutType: "hero-typography",
+    visualIntent: LONG_TITLE,
+    title: LONG_TITLE,
+    subtitle: LONG_SUB,
+  },
+  {
+    id: "w-big",
+    type: "value",
+    layoutType: "big-statement",
+    visualIntent: "x",
+    title: LONG_TITLE,
+    subtitle: LONG_SUB,
+    stats: "99.9%",
+  },
+  {
+    id: "w-split",
+    type: "value",
+    layoutType: "split-content",
+    visualIntent: "x",
+    title: LONG_TITLE,
+    subtitle: LONG_SUB,
+    body: Array.from({ length: 6 }, () => LONG_COMPARE),
+  },
+  {
+    id: "w-feature",
+    type: "value",
+    layoutType: "feature-list",
+    visualIntent: "x",
+    title: LONG_TITLE,
+    body: Array.from({ length: 6 }, () => LONG_COMPARE),
+  },
+  {
+    id: "w-compare",
+    type: "value",
+    layoutType: "comparison",
+    visualIntent: "x",
+    title: LONG_TITLE,
+    body: [LONG_COMPARE, LONG_COMPARE],
+  },
+  {
+    id: "w-cta",
+    type: "cta",
+    layoutType: "cta-final",
+    visualIntent: "x",
+    title: LONG_TITLE,
+    subtitle: LONG_SUB,
+    ctaText: LONG_CTA,
+  },
+];
+
+export function runSlideFitWorstCaseChecks(): void {
+  assert(wrapLoadFactor("x".repeat(500), 12) < 0.5, "wrap factor should shrink for huge text");
+  assert(
+    wrapLoadFactor("abc", 12) === 1,
+    "wrap factor should be 1 for short text"
+  );
+
+  let prev = Infinity;
+  for (const n of [5, 20, 60, 120, 200, 400]) {
+    const t = "x".repeat(n);
+    const v = px(scaledLayoutTitle(t, 84, 18, "hero"));
+    assert(v <= prev + 0.001, "hero title px should not grow with length");
+    prev = v;
+  }
+
+  assert(
+    px(scaledLayoutTitle(LONG_TITLE, 84, 18, "hero")) <=
+      px(scaledLayoutTitle("short", 84, 18, "hero")),
+    "long hero title should be <= short title size"
+  );
+
+  assert(
+    px(scaledLayoutTitle(LONG_TITLE, 48, 14, "cta")) >= 14,
+    "cta title respects min px"
+  );
+
+  assert(
+    scaledPixelValue(LONG_TITLE, 84, 18) >= 18,
+    "scaledPixelValue respects floor"
+  );
+
+  for (const slide of WORST_SLIDES) {
+    const t = totalTextLength(slide);
+    const d = verticalDensity(t);
+    assert(
+      ["airy", "normal", "tight", "compact"].includes(d),
+      `density for ${slide.layoutType}`
+    );
+    subtitleClass(slide.subtitle, "hero");
+    subtitleClass(slide.subtitle, "big");
+    if (slide.body) {
+      for (const line of slide.body) {
+        bodyLineClass(line, slide.body.length > 3, d);
+        comparisonBodyClass(line, "before");
+        comparisonBodyClass(line, "after");
+      }
+    }
+    if (slide.ctaText) {
+      ctaButtonPaddingClass(slide.ctaText, d);
+    }
+    ctaTitlePixelSize(slide.title);
+  }
+
+  // eslint-disable-next-line no-console
+  console.log("slideFit worst-case invariants: OK");
+}
+
+runSlideFitWorstCaseChecks();
+
+
+
+================================================================================
+FILE: src\types.ts
+================================================================================
+
+export type SlideType = 'hook' | 'problem' | 'value' | 'example' | 'cta';
+
+export type LayoutType = 
+  | 'hero-typography' 
+  | 'big-statement' 
+  | 'split-content' 
+  | 'feature-list' 
+  | 'comparison' 
+  | 'cta-final';
+
+/** Strategist / story role â€” drives layout mapping in generation. */
+export type ContentRole =
+  | 'hook'
+  | 'insight'
+  | 'list'
+  | 'comparison'
+  | 'stat'
+  | 'problem'
+  | 'solution'
+  | 'cta';
+
+/** Visual expression tier (optional on slide; UI falls back if absent). */
+export type SlideEmphasis = 'hook' | 'title' | 'body' | 'balanced' | 'close';
+
+export interface SlideContent {
+  id: string;
+  type: SlideType;
+  layoutType: LayoutType;
+  visualIntent: string;
+  title: string;
+  subtitle?: string;
+  body?: string[];
+  stats?: string;
+  ctaText?: string;
+  ctaLink?: string;
+  contentRole?: ContentRole;
+  emphasis?: SlideEmphasis;
+}
+
+export interface BrandConfig {
+  name: string;
+  logo?: string;
+  logoUrl?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  ctaColor: string;
+  whatsapp?: string;
+  website?: string;
+  instagram?: string;
+}
+
+export type CarouselGoal =
+  | 'educational'
+  | 'marketing'
+  | 'storytelling'
+  | 'awareness';
+
+export type TopicComplexity = 'low' | 'medium' | 'high';
+
+export type ToneProfile = 'strong' | 'soft' | 'neutral';
+
+export interface AnalysisResult {
+  topic: string;
+  audience: string;
+  /** One-line outcome (human-readable). */
+  goal: string;
+  carouselGoal: CarouselGoal;
+  complexity: TopicComplexity;
+  toneProfile: ToneProfile;
+  coreMessage: string;
+  keyPoints: string[];
+  /** Legacy / extra voice notes from model. */
+  tone: string;
+  ctaDirection: string;
+}
+
+/** Editorial archetype â€” chosen in planning pass. */
+export type DeckArchetype =
+  | "micro-tip"
+  | "educational"
+  | "myth-busting"
+  | "story"
+  | "breakdown"
+  | "promotion";
+
+/** Caps per deck (Phase 1: fixed product limits). */
+export interface DeckRoleBudget {
+  hook_max: number;
+  cta_max: number;
+  list_max: number;
+  stat_max: number;
+  comparison_max: number;
+}
+
+/** One row in the editorial slide plan. */
+export interface PlannedSlideRow {
+  index: number;
+  contentRole: ContentRole;
+  /** Editorial intent for this slide (shown to generator). */
+  purpose: string;
+}
+
+export interface DeckPlan {
+  version: "deck-plan.v1";
+  archetype: DeckArchetype;
+  targetSlides: number;
+  allowedRoles: ContentRole[];
+  forbiddenRoles: ContentRole[];
+  roleBudget: DeckRoleBudget;
+  slides: PlannedSlideRow[];
+}
+
+export interface Carousel {
+  topic: string;
+  slides: SlideContent[];
+}
+
+/** Saved generation session (localStorage history). */
+export interface CarouselHistoryItem {
+  id: string;
+  prompt: string;
+  slides: SlideContent[];
+  /** Brand snapshot at generation time */
+  brand: BrandConfig;
+  createdAt: string;
+  slideCount: number;
+  /** First slide title for list preview (no image â€” keeps storage small) */
+  previewTitle?: string;
+}
+

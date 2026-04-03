@@ -16,7 +16,9 @@
 
 @layer base {
   body {
-    @apply bg-[#fdfdfd] text-[#0F172A] font-sans antialiased;
+    @apply font-sans antialiased;
+    background-color: var(--color-brand-secondary);
+    color: var(--color-brand-primary);
   }
 
   html[lang="ar"] body {
@@ -45,18 +47,445 @@
   aspect-ratio: 4 / 5;
 }
 
-/* Premium empty template: subtle dot field + injection region */
+/* Premium empty template: clean neutral canvas; gradients live on inner content only */
 .slide-template-surface {
-  background-color: #fafafa;
+  background-color: var(--color-brand-secondary);
 }
 
 .slide-template-dots {
-  background-image: radial-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--color-brand-primary) 9%, transparent) 1px,
+    transparent 1px
+  );
   background-size: 22px 22px;
 }
 
 .slide-main-inject {
-  @apply relative z-[1] flex min-h-0 flex-1 flex-col px-10 py-8;
+  @apply relative z-[1] flex min-h-0 flex-1 flex-col h-full w-full;
+}
+
+/**
+ * Arabic content region only (header/footer stay LTR in BaseSlideTemplate).
+ * Tajawal + metrics; does not mirror chrome layout.
+ */
+.slide-main-rtl {
+  font-family: var(--font-ar-sans);
+}
+
+.slide-main-rtl .font-display {
+  font-family: var(--font-ar-display);
+}
+
+/**
+ * Inner content card — premium paper panel (not uniform glass). Aligns with header/footer px-8.
+ */
+.slide-content-inner {
+  --slide-chrome-pad-x: 2rem;
+  --slide-main-pad-x: 2.5rem;
+  --slide-slot-pad-x: 1rem;
+  --slide-card-outdent: calc(
+    var(--slide-main-pad-x) + var(--slide-slot-pad-x) - var(--slide-chrome-pad-x)
+  );
+  box-sizing: border-box;
+  width: calc(100% + 2 * var(--slide-card-outdent));
+  max-width: none;
+  margin-block: 0;
+  margin-inline: calc(-1 * var(--slide-card-outdent));
+  padding: 1.35rem 1.2rem;
+  border-radius: 1.05rem;
+  border: 1px solid rgb(229 231 235 / 0.95);
+  background: rgb(255 255 255 / 0.98);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 18px 44px -16px rgb(15 23 42 / 0.14),
+    0 6px 20px -8px rgb(15 23 42 / 0.08);
+}
+
+/* Per-role card surfaces — distinct “moments” across the carousel */
+.slide-content-inner.slide-hook {
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--color-brand-secondary) 100%, #ffffff 0%) 0%,
+    color-mix(in srgb, var(--color-brand-secondary) 90%, #ffffff 10%) 55%,
+    #ffffff 100%
+  );
+  border-color: color-mix(in srgb, var(--color-brand-primary) 8%, transparent);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 22px 48px -18px rgb(15 23 42 / 0.16),
+    0 8px 24px -10px rgb(15 23 42 / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+}
+
+.slide-content-inner.slide-list {
+  background-color: #ffffff;
+  border-inline-start: 3px solid color-mix(in srgb, var(--color-brand-accent) 55%, transparent);
+  padding-inline-start: calc(1.2rem - 3px);
+  border-color: rgb(226 232 240 / 0.95);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 40px -18px rgb(79 70 229 / 0.1),
+    0 6px 16px -6px rgb(15 23 42 / 0.07);
+}
+
+.slide-content-inner.slide-stat {
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--color-brand-accent) 22%, var(--color-brand-secondary)) 0%,
+    #ffffff 45%,
+    var(--color-brand-secondary) 100%
+  );
+  border-color: color-mix(in srgb, var(--color-brand-accent) 45%, transparent);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 20px 46px -16px rgb(99 102 241 / 0.14),
+    0 8px 20px -8px rgb(15 23 42 / 0.09);
+}
+
+.slide-content-inner.slide-comparison {
+  background-color: #ffffff;
+  border-color: color-mix(in srgb, var(--color-brand-primary) 10%, transparent);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 18px 42px -16px rgb(15 23 42 / 0.13),
+    inset 0 1px 0 rgb(255 255 255 / 0.85);
+}
+
+.slide-content-inner.slide-cta {
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    color-mix(in srgb, var(--color-brand-cta) 18%, var(--color-brand-secondary)) 100%
+  );
+  border-color: color-mix(in srgb, var(--color-brand-cta) 55%, transparent);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 24px 50px -18px rgb(79 70 229 / 0.12),
+    0 8px 22px -8px rgb(15 23 42 / 0.08);
+}
+
+.slide-content-inner.slide-insight {
+  background-color: #ffffff;
+  border-color: color-mix(in srgb, var(--color-brand-primary) 7%, transparent);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 38px -16px rgb(15 23 42 / 0.11);
+}
+
+.slide-content-inner.slide-problem {
+  background-color: #ffffff;
+  border-inline-start: 3px solid color-mix(in srgb, var(--color-brand-cta) 45%, transparent);
+  padding-inline-start: calc(1.2rem - 3px);
+  border-color: rgb(254 226 226 / 0.85);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 40px -16px rgb(220 38 38 / 0.08);
+}
+
+.slide-content-inner.slide-solution {
+  background-color: #ffffff;
+  border-inline-start: 3px solid color-mix(in srgb, var(--color-brand-accent) 50%, transparent);
+  padding-inline-start: calc(1.2rem - 3px);
+  border-color: rgb(209 250 229 / 0.9);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 16px 40px -16px rgb(16 185 129 / 0.1);
+}
+
+/* Fixed typography tiers — all content modes use these only */
+.slide-type-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 4vw + 0.35rem, 2.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-brand-primary);
+}
+
+.slide-main-rtl .slide-type-title {
+  font-family: var(--font-ar-display);
+  letter-spacing: 0;
+  line-height: 1.22;
+}
+
+.slide-type-subtitle {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.58;
+  @apply text-brand-primary/55;
+}
+
+.slide-main-rtl .slide-type-subtitle {
+  line-height: 1.78;
+}
+
+.slide-type-body {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.52;
+  @apply text-brand-primary;
+}
+
+.slide-main-rtl .slide-type-body {
+  line-height: 1.78;
+}
+
+/* Eyebrow: readable at small sizes; LTR uses light tracking + caps */
+.slide-type-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  @apply text-brand-primary/50;
+}
+
+/* Arabic / RTL labels: no faux-Latin tracking; sentence case reads naturally */
+.slide-type-eyebrow-rtl {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+/* Stat: supporting emphasis only — title stays the hero */
+.slide-type-stat {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 3.2vw + 0.4rem, 1.85rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  @apply text-brand-accent/85;
+}
+
+.slide-main-rtl .slide-type-stat {
+  font-family: var(--font-ar-display);
+  letter-spacing: 0;
+}
+
+/*
+ * Expressive layer — same DOM/layout; driven by data-emphasis / data-rhythm on .slide-content-inner
+ */
+.slide-content-inner[data-emphasis="hook"] .slide-inner-accent {
+  width: 4rem;
+  opacity: 0.92;
+}
+
+.slide-content-inner[data-emphasis="hook"] .slide-type-title {
+  font-size: clamp(1.68rem, 4.85vw + 0.45rem, 3.05rem);
+  line-height: 1.09;
+  letter-spacing: -0.025em;
+}
+
+.slide-content-inner[data-emphasis="hook"] .slide-type-subtitle {
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  @apply text-brand-primary/48;
+}
+
+.slide-main-rtl .slide-content-inner[data-emphasis="hook"] .slide-type-subtitle {
+  line-height: 1.76;
+}
+
+.slide-content-inner[data-emphasis="hook"] [data-slot="body"] {
+  min-height: 1.125rem;
+}
+
+.slide-content-inner[data-emphasis="title"] .slide-type-title {
+  font-size: clamp(1.56rem, 4.25vw + 0.36rem, 2.88rem);
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+}
+
+.slide-content-inner[data-emphasis="body"] .slide-type-title {
+  font-size: clamp(1.38rem, 3.45vw + 0.24rem, 2.38rem);
+  font-weight: 600;
+  line-height: 1.18;
+  @apply text-brand-primary/90;
+}
+
+.slide-content-inner[data-emphasis="body"] .slide-type-body {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.slide-main-rtl .slide-content-inner[data-emphasis="body"] .slide-type-body {
+  line-height: 1.78;
+}
+
+.slide-content-inner[data-emphasis="balanced"] .slide-type-title {
+  font-size: clamp(1.52rem, 4.05vw + 0.32rem, 2.72rem);
+  line-height: 1.12;
+}
+
+/* Closing: terminal weight — no gradient */
+.slide-content-inner[data-emphasis="close"] .slide-unified-cta {
+  padding-top: 1.05rem;
+  padding-bottom: 1.05rem;
+  font-size: 0.96875rem;
+  @apply border-brand-primary/28 bg-brand-primary/[0.09] text-brand-primary shadow-md;
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.06),
+    0 2px 8px -2px rgb(15 23 42 / 0.08);
+}
+
+.slide-content-inner[data-emphasis="close"] .slide-unified-cta:hover {
+  @apply shadow-lg;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Role variants — same .slide-content-inner card, different visual moments   */
+/* -------------------------------------------------------------------------- */
+
+/* Hook: hero title, hide empty body region, generous vertical rhythm */
+.slide-content-inner.slide-hook[data-body-empty="true"] [data-slot="body"] {
+  display: none;
+}
+
+.slide-content-inner.slide-hook .slide-inner-accent {
+  width: 5rem;
+  height: 0.25rem;
+  margin-bottom: 1.85rem;
+  @apply bg-brand-accent;
+  opacity: 1;
+}
+
+.slide-content-inner.slide-hook .slide-type-title {
+  font-size: clamp(1.95rem, 5.85vw + 0.55rem, 3.55rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+}
+
+.slide-main-rtl .slide-content-inner.slide-hook .slide-type-title {
+  line-height: 1.14;
+}
+
+.slide-content-inner.slide-hook [data-layout="unified"] {
+  gap: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+/* List: scannable bullets, steady title tier */
+.slide-content-inner.slide-list .slide-type-title {
+  font-size: clamp(1.38rem, 3.5vw + 0.26rem, 2.28rem);
+  font-weight: 800;
+  line-height: 1.12;
+  @apply text-brand-primary;
+}
+
+.slide-content-inner.slide-list .slide-type-body {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.slide-content-inner.slide-list [data-body-row="list"] ul {
+  gap: 0.65rem;
+}
+
+.slide-content-inner.slide-list [data-body-row="list"] li > span.rounded-full {
+  margin-top: 0.42rem;
+  width: 0.4rem;
+  height: 0.4rem;
+}
+
+.slide-main-rtl .slide-content-inner.slide-list .slide-type-body {
+  line-height: 1.72;
+}
+
+/* Stat: number first (flex order), title demoted; stat is the hero */
+.slide-content-inner.slide-stat [data-layout="unified"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.slide-content-inner.slide-stat [data-slot="body"] {
+  order: 1;
+}
+
+.slide-content-inner.slide-stat [data-slot="title"] {
+  order: 2;
+}
+
+.slide-content-inner.slide-stat [data-slot="subtitle"] {
+  order: 3;
+}
+
+.slide-content-inner.slide-stat [data-slot="cta"] {
+  order: 4;
+}
+
+.slide-content-inner.slide-stat .slide-type-stat {
+  font-size: clamp(2.15rem, 6.5vw + 0.85rem, 3.5rem);
+  line-height: 1.02;
+  font-weight: 800;
+  @apply text-brand-accent;
+}
+
+.slide-content-inner.slide-stat .slide-type-title {
+  font-size: clamp(1rem, 2.4vw + 0.45rem, 1.3rem);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  @apply text-brand-primary/60;
+}
+
+.slide-main-rtl .slide-content-inner.slide-stat .slide-type-stat {
+  line-height: 1.08;
+}
+
+.slide-main-rtl .slide-content-inner.slide-stat .slide-type-title {
+  line-height: 1.45;
+}
+
+/* Comparison: two labeled blocks + clear separator */
+.slide-content-inner.slide-comparison [data-body-row="compare"] {
+  gap: 0.625rem;
+  padding-block: 0.25rem;
+}
+
+.slide-content-inner.slide-comparison [data-body-row="compare"] > .h-px {
+  height: 2px;
+  margin-block: 0.35rem;
+  border-radius: 9999px;
+  @apply bg-brand-primary/18;
+}
+
+.slide-content-inner.slide-comparison [data-body-row="compare"] > .slide-type-body:nth-of-type(2),
+.slide-content-inner.slide-comparison [data-body-row="compare"] > .slide-type-body:nth-of-type(4) {
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.5rem;
+  background-color: rgb(248 250 252 / 0.92);
+  border: 1px solid rgb(226 232 240 / 0.9);
+}
+
+.slide-content-inner.slide-comparison [data-body-row="compare"] .slide-type-eyebrow {
+  @apply text-brand-primary/45;
+}
+
+/* CTA: final beat — extra air above button, dominant control */
+.slide-content-inner.slide-cta [data-slot="cta"] {
+  margin-top: 0.35rem;
+  padding-top: 0.85rem;
+}
+
+.slide-content-inner.slide-cta .slide-type-title {
+  font-size: clamp(1.35rem, 3.5vw + 0.3rem, 2.2rem);
+  line-height: 1.16;
+}
+
+.slide-content-inner.slide-cta .slide-unified-cta {
+  padding-top: 1.125rem;
+  padding-bottom: 1.125rem;
+  font-size: 1rem;
+  @apply border-brand-cta/40 bg-brand-cta/[0.1] text-brand-primary shadow-md;
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.06),
+    0 4px 14px -4px rgb(79 70 229 / 0.18);
+}
+
+.slide-content-inner.slide-cta .slide-unified-cta:hover {
+  @apply shadow-lg;
 }
 
 /* Arabic slide canvas: Tajawal + comfortable line metrics for RTL content */
@@ -79,20 +508,73 @@
 }
 
 .slide-content-container {
-  @apply flex-1 flex flex-col justify-center px-12 py-8 relative z-10;
+  @apply flex-1 flex flex-col justify-start relative z-10;
+}
+
+/* Classic layout system (layoutType-driven) — matches original CarouselPro compositions */
+.slide-classic-scene {
+  @apply min-h-0 w-full max-w-full;
+}
+
+/* Fit wrapper: participates in flex shrink so classic layouts don’t clip blindly */
+.slide-classic-fit {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: visible;
+  width: 100%;
+}
+
+.slide-content-container.slide-classic-scene {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Visible so wrapped text is never clipped; fit is enforced via slideFit scaling */
+  overflow: visible;
+}
+
+.slide-content-container.slide-classic-scene.is-compact-vertical {
+  @apply py-0 md:py-0;
+}
+
+.slide-classic-stat-num {
+  font-size: clamp(2.75rem, 8.5vw + 0.5rem, 5.5rem);
+  line-height: 0.95;
+}
+
+.slide-classic-stat-num--md {
+  font-size: clamp(2.25rem, 7vw + 0.35rem, 4.25rem);
+}
+
+.slide-classic-stat-num--sm {
+  font-size: clamp(1.75rem, 5.5vw + 0.25rem, 3.25rem);
+}
+
+.slide-classic-stat-num--xs {
+  font-size: clamp(1.35rem, 4vw + 0.15rem, 2.5rem);
+  line-height: 1;
+}
+
+.slide-main-rtl .slide-classic-hero-title,
+.slide-main-rtl .slide-classic-split-title,
+.slide-main-rtl .slide-classic-feature-title {
+  line-height: 1.12;
+  letter-spacing: 0;
 }
 
 /* Reusable Component Classes */
 .glass-panel {
   @apply rounded-[24px] border shadow-sm backdrop-blur-md;
-  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
-  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+  background-color: var(--glass-bg, color-mix(in srgb, var(--color-brand-secondary) 95%, #ffffff 5%));
+  border-color: var(--glass-border, color-mix(in srgb, var(--color-brand-primary) 12%, transparent));
 }
 
 .brand-pill {
   @apply inline-flex items-center gap-2 px-4 py-1.5 rounded-full border shadow-sm;
-  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
-  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+  background-color: var(--glass-bg, color-mix(in srgb, var(--color-brand-secondary) 96%, #ffffff 4%));
+  border-color: var(--glass-border, color-mix(in srgb, var(--color-brand-primary) 10%, transparent));
 }
 
 .cta-button {
@@ -105,12 +587,12 @@
 
 .feature-card {
   @apply rounded-[24px] border shadow-sm flex items-center gap-4 p-6 transition-all;
-  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
-  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+  background-color: var(--glass-bg, color-mix(in srgb, var(--color-brand-secondary) 96%, #ffffff 4%));
+  border-color: var(--glass-border, color-mix(in srgb, var(--color-brand-primary) 10%, transparent));
 }
 
 .comparison-card {
-  @apply p-8 rounded-[32px] border relative overflow-hidden transition-all;
+  @apply p-8 rounded-[32px] border relative overflow-visible transition-all;
 }
 
 /* Background Accents */
@@ -120,13 +602,25 @@
 
 .bg-grid {
   @apply absolute inset-0 pointer-events-none;
-  background-image: radial-gradient(var(--grid-color, rgba(0,0,0,0.1)) 1px, transparent 1px);
+  background-image: radial-gradient(
+    var(--grid-color, color-mix(in srgb, var(--color-brand-primary) 10%, transparent)) 1px,
+    transparent 1px
+  );
   background-size: 40px 40px;
 }
 
 .bg-pattern {
   @apply absolute inset-0 pointer-events-none;
-  background-image: linear-gradient(45deg, var(--pattern-color, rgba(0,0,0,0.05)) 25%, transparent 25%, transparent 50%, var(--pattern-color, rgba(0,0,0,0.05)) 50%, var(--pattern-color, rgba(0,0,0,0.05)) 75%, transparent 75%, transparent);
+  background-image: linear-gradient(
+    45deg,
+    var(--pattern-color, color-mix(in srgb, var(--color-brand-accent) 10%, transparent)) 25%,
+    transparent 25%,
+    transparent 50%,
+    var(--pattern-color, color-mix(in srgb, var(--color-brand-accent) 10%, transparent)) 50%,
+    var(--pattern-color, color-mix(in srgb, var(--color-brand-accent) 10%, transparent)) 75%,
+    transparent 75%,
+    transparent
+  );
   background-size: 40px 40px;
 }
 
@@ -142,7 +636,23 @@
 /* Export Specifics - Ensuring visibility */
 [data-exporting="true"] .glass-panel,
 [data-exporting="true"] .brand-pill,
-[data-exporting="true"] .feature-card {
+[data-exporting="true"] .feature-card,
+[data-exporting="true"] .comparison-card {
   @apply backdrop-blur-none; /* Backdrop blur can be flaky in some export environments */
   background-color: var(--glass-bg-export, rgba(255, 255, 255, 0.95));
+}
+
+[data-exporting="true"] .cta-button {
+  @apply backdrop-blur-none;
+  opacity: 1;
+}
+
+[data-exporting="true"] .slide-content-inner {
+  background: rgb(255 255 255 / 0.98) !important;
+  border-color: rgb(229 231 235 / 0.95) !important;
+  border-inline-start-width: 1px;
+  padding-inline-start: 1.2rem;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    0 12px 32px -16px rgb(15 23 42 / 0.1);
 }
