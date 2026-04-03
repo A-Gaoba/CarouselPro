@@ -68,9 +68,14 @@ export type TopicComplexity = 'low' | 'medium' | 'high';
 
 export type ToneProfile = 'strong' | 'soft' | 'neutral';
 
+/** Detected from user input + analysis fields; drives generation language. */
+export type ContentLanguage = 'ar' | 'en';
+
 export interface AnalysisResult {
   topic: string;
   audience: string;
+  /** Language for all carousel copy — inferred from input (Arabic script vs Latin). */
+  language: ContentLanguage;
   /** One-line outcome (human-readable). */
   goal: string;
   carouselGoal: CarouselGoal;
@@ -82,6 +87,20 @@ export interface AnalysisResult {
   tone: string;
   ctaDirection: string;
 }
+
+/**
+ * Narrative “value” each slide must add (orthogonal to contentRole / layout).
+ * No two consecutive slides may share the same valueType.
+ */
+export type InformationValueType =
+  | 'insight'
+  | 'problem'
+  | 'consequence'
+  | 'example'
+  | 'comparison'
+  | 'statistic'
+  | 'solution'
+  | 'action';
 
 /** Editorial archetype — chosen in planning pass. */
 export type DeckArchetype =
@@ -108,6 +127,18 @@ export interface PlannedSlideRow {
   contentRole: ContentRole;
   /** Editorial intent for this slide (shown to generator). */
   purpose: string;
+  /** Core assertion this slide makes. */
+  claim: string;
+  /** New value introduced vs earlier slides. */
+  newInformation: string;
+  /** Slide index this slide builds on; -1 means standalone opener. */
+  dependsOn: number;
+  /** Concepts that must not be repeated in this slide. */
+  mustNotRepeat: string[];
+  /** Narrative handoff into the next slide. */
+  bridgeToNext: string;
+  /** Kind of value this slide adds; must differ from the previous slide’s valueType. */
+  valueType: InformationValueType;
 }
 
 export interface DeckPlan {

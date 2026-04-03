@@ -1,4 +1,5 @@
 import type { ContentRole, DeckPlan, SlideContent } from "../types";
+import { MIN_DECK_SLIDES } from "./deckPlan";
 import { getContractForLayout } from "./layoutContracts";
 import { mapContentRoleToTypeLayout } from "./layoutRoleMap";
 import { bodyItemCount, isStatMeaningful } from "./slideStructuralValidation";
@@ -22,6 +23,8 @@ export type SlideValidationErrorCode =
   | "CONTENT_ROLE_MISMATCH"
   | "LAST_SLIDE_CTA_INVALID"
   | "SLIDE_COUNT_MISMATCH"
+  | "TARGET_SLIDES_BELOW_MIN"
+  | "VALUE_TYPE_CONSECUTIVE_DUPLICATE"
   | "DUPLICATE_TITLE"
   | "GENERIC_TITLE"
   | "CONTRAST_LABEL_MISSING"
@@ -95,6 +98,7 @@ const GENERIC_CONTRAST_LABEL_KEYS = new Set([
 export function severityForCode(code: SlideValidationErrorCode): ValidationSeverity {
   switch (code) {
     case "SLIDE_COUNT_MISMATCH":
+    case "TARGET_SLIDES_BELOW_MIN":
     case "CONTENT_ROLE_MISMATCH":
     case "LAST_SLIDE_CTA_INVALID":
     case "CTA_TEXT_MISSING":
@@ -108,6 +112,8 @@ export function severityForCode(code: SlideValidationErrorCode): ValidationSever
     case "LAST_CONTENT_QUESTION":
     case "ROLE_SUPPORT_TEXT_REQUIRED":
       return "high";
+    case "VALUE_TYPE_CONSECUTIVE_DUPLICATE":
+      return "medium";
     case "TITLE_TOO_LONG":
     case "BODY_COUNT_HIGH":
     case "BODY_ITEM_TOO_LONG":
@@ -536,6 +542,30 @@ export function validateDeck(
   plan: DeckPlan
 ): DeckValidationIssue[] {
   const issues: DeckValidationIssue[] = [];
+  if (plan.targetSlides < MIN_DECK_SLIDES) {
+    issues.push({
+      index: -1,
+      errors: [
+        {
+          code: "TARGET_SLIDES_BELOW_MIN",
+          field: "targetSlides",
+          min: MIN_DECK_SLIDES,
+          actual: plan.targetSlides,
+          message: `Deck plan must have at least ${MIN_DECK_SLIDES} slides (got ${plan.targetSlides}).`,
+        },
+      ],
+    });
+    return issues;
+  }
+  for (let i = 1; i < plan.slides.length; i++) {
+    if (plan.slides[i].valueType === plan.slides[i - 1].valueType) {
+      pushIssue(issues, i, {
+        code: "VALUE_TYPE_CONSECUTIVE_DUPLICATE",
+        field: "valueType",
+        message: `valueType must differ from the previous slide; both are "${plan.slides[i].valueType}".`,
+      });
+    }
+  }
   if (slides.length !== plan.targetSlides) {
     issues.push({
       index: -1,

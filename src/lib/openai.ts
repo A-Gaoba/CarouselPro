@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type {
   AnalysisResult,
   CarouselGoal,
+  ContentLanguage,
   ContentRole,
   DeckPlan,
   LayoutType,
@@ -14,6 +15,7 @@ import type {
 } from "../types";
 import {
   DECK_PLAN_JSON_SCHEMA,
+  MIN_DECK_SLIDES,
   buildFallbackDeckPlan,
   formatDeckPlanForPrompt,
   normalizeAndEnforceDeckPlan,
@@ -36,6 +38,14 @@ import {
   sortIssuesForRegeneration,
   validateDeck,
 } from "./slideValidators";
+import {
+  ctaPassesLocalizedSemanticCheck,
+  highestSemanticSeverity,
+  semanticIssuesBySlide,
+  type SemanticIssue,
+  type SemanticValidationResult,
+  validateDeckSemantics,
+} from "./semanticValidators";
 
 const MODEL = "gpt-4o-mini";
 
@@ -127,7 +137,36 @@ const ANALYSIS_JSON_SCHEMA = {
 
 /** Phase 2.5: tighter budget; LOW-only issues accept without regen. */
 const MAX_REGEN_PER_SLIDE = 1;
-const MAX_REGEN_CALLS_TOTAL = 8;
+const MAX_REGEN_CALLS_TOTAL = 1;
+const MAX_SEGMENT_REGEN_CALLS = 0;
+const MAX_CTA_RESCUE_CALLS = 1;
+const EARLY_WHOLE_DECK_RETRY_ERROR = "EARLY_WHOLE_DECK_RETRY";
+
+const SEMANTIC_CRITIC_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    verdict: { type: "string", enum: ["pass", "revise"] },
+    issues: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          slide: { type: "integer", minimum: 0 },
+          type: {
+            type: "string",
+            enum: ["redundant", "empty", "weak", "invalid_role", "no_progression"],
+          },
+          reason: { type: "string" },
+          severity: { type: "string", enum: ["high", "medium", "low"] },
+        },
+        required: ["slide", "type", "reason", "severity"],
+      },
+    },
+  },
+  required: ["verdict", "issues"],
+} as const;
 
 /** Per-slide JSON schema from layout contract + fixed plan role (layout-driven). */
 function buildSlideItemSchema(plan: DeckPlan, index: number): Record<string, unknown> {
@@ -258,6 +297,48 @@ function coerceEmphasis(raw: string, role: ContentRole): SlideEmphasis {
   return defaultEmphasisForRole(role);
 }
 
+/** Arabic script ranges (letters); used for heuristic language detection. */
+const ARABIC_SCRIPT_CHARS =
+  /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g;
+
+function detectContentLanguage(text: string): ContentLanguage {
+  const s = text.trim();
+  if (!s) return "en";
+  const arabic = (s.match(ARABIC_SCRIPT_CHARS) || []).length;
+  const latin = (s.match(/[a-zA-Z]/g) || []).length;
+  const letters = arabic + latin;
+  if (letters === 0) return "en";
+  if (arabic > latin) return "ar";
+  if (latin > arabic) return "en";
+  if (arabic > 0) return "ar";
+  return "en";
+}
+
+/** Infer carousel output language from raw input and extracted analysis fields. */
+function inferLanguageFromAnalysisInputs(
+  userInput: string,
+  topic: string,
+  keyPoints: string[],
+  coreMessage: string
+): ContentLanguage {
+  const combined = [userInput, topic, coreMessage, ...keyPoints].join("\n");
+  return detectContentLanguage(combined);
+}
+
+/** Shared language rules for all slide-generation and regen prompts. */
+function formatLanguageConstraintsForPrompt(analysis: AnalysisResult): string {
+  if (analysis.language === "ar") {
+    return `LANGUAGE (MANDATORY)
+Target language: Arabic (ar).
+- Write ALL content in Arabic. Do NOT use English.
+- Output must be entirely in the target language. Mixing languages is not allowed.`;
+  }
+  return `LANGUAGE (MANDATORY)
+Target language: English (en).
+- Write ALL content in English.
+- Output must be entirely in the target language. Mixing languages is not allowed.`;
+}
+
 function normalizeAnalysis(
   parsed: Record<string, unknown>,
   userInput: string
@@ -275,17 +356,31 @@ function normalizeAnalysis(
   }
   keyPoints = keyPoints.slice(0, 7);
 
+  const topic =
+    String(parsed.topic || userInput).trim().slice(0, 200) ||
+    userInput.substring(0, 50);
+  const coreMessage = String(parsed.coreMessage || userInput)
+    .trim()
+    .slice(0, 500);
+  const language = inferLanguageFromAnalysisInputs(
+    userInput,
+    topic,
+    keyPoints,
+    coreMessage
+  );
+
   return {
-    topic: String(parsed.topic || userInput).trim().slice(0, 200) || userInput.substring(0, 50),
+    topic,
     audience: String(parsed.audience || "General Audience").trim().slice(0, 200),
     goal: String(parsed.goal || "Inform and engage").trim().slice(0, 200),
     carouselGoal: coerceCarouselGoal(String(parsed.carouselGoal ?? "awareness")),
     complexity: coerceComplexity(String(parsed.complexity ?? "medium")),
     toneProfile: coerceToneProfile(String(parsed.toneProfile ?? "neutral")),
-    coreMessage: String(parsed.coreMessage || userInput).trim().slice(0, 500),
+    coreMessage,
     keyPoints,
     tone: String(parsed.tone || "Professional").trim().slice(0, 120),
     ctaDirection: String(parsed.ctaDirection || "Follow for more").trim().slice(0, 200),
+    language,
   };
 }
 
@@ -497,6 +592,9 @@ Extract:
 - tone: optional extra voice notes (e.g. professional, playful)
 - ctaDirection: what the last slide should ask the viewer to do
 
+Language:
+- Write topic, keyPoints, coreMessage, and ctaDirection in the SAME language as the user input (Arabic if the input is Arabic; English if the input is English).
+
 Complexity hints:
 - low → few key points, narrow topic
 - high → broad topic, many key points, or deep explanation needed`;
@@ -529,21 +627,30 @@ Complexity hints:
     return normalizeAnalysis(parsed, userInput);
   } catch (error) {
     console.error("Analysis Error:", error);
+    const topic = userInput.substring(0, 50);
+    const keyPoints = [
+      userInput.trim() || "Idea one",
+      "Idea two",
+      "Idea three",
+    ];
+    const coreMessage = userInput;
     return {
-      topic: userInput.substring(0, 50),
+      topic,
       audience: "General Audience",
       goal: "Inform and engage",
       carouselGoal: "awareness",
       complexity: "medium",
       toneProfile: "neutral",
-      coreMessage: userInput,
-      keyPoints: [
-        userInput.trim() || "Idea one",
-        "Idea two",
-        "Idea three",
-      ],
+      coreMessage,
+      keyPoints,
       tone: "Professional",
       ctaDirection: "Follow for more",
+      language: inferLanguageFromAnalysisInputs(
+        userInput,
+        topic,
+        keyPoints,
+        coreMessage
+      ),
     };
   }
 }
@@ -552,10 +659,17 @@ async function createDeckPlan(
   analysis: AnalysisResult,
   userInput: string
 ): Promise<DeckPlan> {
+  const planLang =
+    analysis.language === "ar"
+      ? "Arabic"
+      : "English";
   const prompt = `You are an editorial planner for Instagram carousels. Output JSON matching the schema exactly.
 
 USER INPUT (verbatim context):
 ${JSON.stringify(userInput)}
+
+TARGET LANGUAGE FOR PLAN TEXT: ${analysis.language} (${planLang})
+Write every slide row field that will guide the writer (purpose, claim, newInformation, mustNotRepeat items, bridgeToNext) in ${planLang}. Do not write those fields in a different language than the user's content.
 
 ANALYSIS:
 - Topic: ${analysis.topic}
@@ -570,13 +684,22 @@ ANALYSIS:
 
 TASK:
 1) Pick archetype that fits the brief.
-2) Set targetSlides between 5 and 12 (start at 5 for simple topics, more for deep/broad).
+2) Set targetSlides between 7 and 12 (minimum 7 slides; never 6 or fewer).
 3) allowedRoles: roles you intend to use (subset of hook, insight, list, comparison, contrast, stat, problem, solution, cta).
 4) forbiddenRoles: roles that must not appear (often empty).
 5) roleBudget: use hook_max 1, cta_max 1, list_max 2, stat_max 1, comparison_max 1, contrast_max 1 (server enforces).
-6) slides: exactly targetSlides items with index 0..targetSlides-1. First slide contentRole hook; last slide contentRole cta. Each row: clear purpose for the writer.
+6) slides: exactly targetSlides items with index 0..targetSlides-1. First slide contentRole hook; last slide contentRole cta.
+7) For EACH slide row include semantic fields:
+   - purpose: execution direction for writer
+   - claim: concrete statement this slide makes
+   - newInformation: what NEW value this slide adds vs earlier slides
+   - dependsOn: prior slide index this builds on (-1 for opener)
+   - mustNotRepeat: concepts this slide must avoid repeating
+   - bridgeToNext: what this slide sets up for the next one
+   - valueType: exactly one of insight | problem | consequence | example | comparison | statistic | solution | action — the kind of narrative value this slide introduces (orthogonal to contentRole). No two consecutive slides may use the same valueType.
+8) dependsOn MUST be -1 for index 0; for all other slides it MUST be a previous index (< current index), never self.
 
-Avoid redundant list/stat/comparison; diversify middle roles where it helps the story.`;
+Avoid filler rows. Every middle slide must advance narrative logic and avoid semantic repetition. Vary valueType across the deck so each slide adds a different kind of value than the slide before it.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -619,10 +742,66 @@ function buildSlidesUserPrompt(
   const keyPointsStr = analysis.keyPoints.join(" | ");
   const slideCount = plan.targetSlides;
   const planBlock = formatDeckPlanForPrompt(plan);
+  const semanticGuardrails = plan.slides
+    .map(
+      (row, i) =>
+        `Slide ${i + 1} semantic target:
+- valueType: ${row.valueType} (${
+          i > 0
+            ? `must differ from previous slide (${plan.slides[i - 1].valueType})`
+            : "opening slide"
+        })
+- claim: ${row.claim}
+- newInformation: ${row.newInformation}
+- dependsOn: ${row.dependsOn}
+- mustNotRepeat: ${row.mustNotRepeat.length ? row.mustNotRepeat.join(" | ") : "(none)"}
+- bridgeToNext: ${row.bridgeToNext}`
+    )
+    .join("\n");
+  const priorCoverageGuide = plan.slides
+    .map((row, i) => {
+      const prevClaims = plan.slides
+        .slice(0, i)
+        .map((x) => x.claim)
+        .filter(Boolean)
+        .join(" | ");
+      return `Slide ${i + 1} previous coverage summary: ${prevClaims || "(none - opener)"}`;
+    })
+    .join("\n");
 
-  return `You are a senior carousel content strategist and editor. Build a story-driven Instagram carousel (light SaaS typography style — text only, no images).
+  return `You are a senior content strategist and storytelling expert specialized in high-quality Instagram carousels.
+
+${formatLanguageConstraintsForPrompt(analysis)}
+
+Your task is to generate a FULL carousel that reads as ONE connected story, not separate slides.
+
+CORE RULE (CRITICAL)
+This is NOT a collection of slides.
+This is a STORY.
+Each slide MUST:
+- build on the previous one
+- introduce NEW information
+- move the narrative forward
+If a slide repeats the same idea, it is wrong and must be rewritten.
+
+STORY STRUCTURE
+Follow this progression while honoring the fixed editorial plan:
+1) Hook -> introduce tension or idea
+2) Context -> explain why this matters
+3) Expansion -> deepen understanding
+4) Problem/contrast -> show what goes wrong
+5) Solution -> provide method or approach
+6) CTA -> clear action
+
+THINKING STEP (MANDATORY)
+Before writing slides, internally plan:
+- the main idea
+- progression of ideas
+- what each slide adds
+Do NOT output your thinking.
 
 BRIEF
+Detected output language: ${analysis.language} (${analysis.language === "ar" ? "Arabic" : "English"})
 Topic: ${analysis.topic}
 Audience: ${analysis.audience}
 Outcome (goal): ${analysis.goal}
@@ -635,37 +814,86 @@ Voice notes: ${analysis.tone}
 CTA direction (last slide): ${analysis.ctaDirection}
 Brand name (voice only): "${brandName}"
 
-EDITORIAL PLAN (mandatory — slide order and roles are fixed)
+EDITORIAL PLAN (MANDATORY — ORDER, ROLES, AND SLIDE COUNT ARE FIXED)
 ${planBlock}
+
+SEMANTIC PLAN TARGETS (MANDATORY)
+${semanticGuardrails}
+
+PREVIOUS COVERAGE SUMMARY (MANDATORY FOR SEMANTIC DELTA)
+${priorCoverageGuide}
+
+SEMANTIC RULES
+- Each slide must answer a different question.
+- Each slide must add NEW value.
+- INFORMATION VALUE TYPE (from plan valueType): each slide must introduce a different kind of value than the previous slide — insight, problem, consequence, example, comparison, statistic, solution, or action. Never use the same valueType twice in a row.
+- Avoid repeating previous claims, even with different wording.
+- Respect mustNotRepeat concepts from the plan row.
+- dependsOn means the slide must connect to that earlier slide explicitly.
+- bridgeToNext means the slide should naturally prepare the next slide.
+
+STRICT ROLE MATCHING
+- Slide at array index i MUST have contentRole exactly equal to the plan row for slide i+1.
+- Each contentRole implies a fixed layoutType; write copy that fits that layout.
+- visualIntent: one short line echoing the row purpose.
+
+ROLE ENFORCEMENT
+- Hook: must include meaningful context (not empty).
+- Problem: must include specific consequences, costs, or risks.
+- Solution: must describe HOW (steps, method, mechanism), not only what.
+- CTA: must include a clear, direct imperative request and feel like the natural conclusion from previous slides.
+- CTA must end in an explicit action ask (${
+    analysis.language === "ar"
+      ? "examples in Arabic: تابع الآن / ابدأ اليوم / راسلنا"
+      : "e.g. Follow now / Start today / DM us"
+  }).
+- CTA must NOT be only a summary, reflection, or generic closing statement.
+${
+  analysis.language === "ar"
+    ? `
+ARABIC ROLE QUALITY (MANDATORY — Arabic decks)
+- Problem (مشكلة): state concrete pain, risk, cost, delay, or friction in Arabic (not a vague headline).
+- Solution (حل): describe steps, method, or how-to in Arabic (mechanism, not slogans).
+- CTA (دعوة لاتخاذ إجراء): end the story with a direct Arabic imperative; ctaText must read as a command (e.g. تابع الآن، ابدأ الآن، جرّب الآن، اكتشف المزيد، تواصل معنا) — 1–2 words on the button, verb-led.
+`
+    : ""
+}
 
 ${formatLayoutDrivenPromptSection(plan)}
 
-SLIDE COUNT: Return exactly ${slideCount} slides in "slides". Not more, not fewer.
-
-STRICT ROLE MATCHING
-- Slide at array index i MUST have contentRole exactly equal to the plan row for slide i+1 (same order as SLIDE-BY-SLIDE PLAN).
-- Each contentRole implies a fixed layoutType (see LAYOUT STRUCTURE). Write copy that fits that layout’s blocks (hero ≠ list ≠ comparison ≠ CTA).
-- visualIntent: one short line echoing the row purpose.
-
-LAYOUT-DRIVEN COPY (mandatory)
-- Follow HARD CHARACTER LIMITS above exactly (counts include spaces).
-- hook (hero-typography): may be minimal (strong title only, or title + short subtitle).
-- problem / solution: must include payoff text (subtitle or one body line); do not output title-only.
-- insight (big-statement): must include supporting text (subtitle or one body line); do not output title-only.
+LAYOUT-DRIVEN COPY (MANDATORY)
+- Follow HARD CHARACTER LIMITS exactly (counts include spaces).
+- hook (hero-typography): title + meaningful context via subtitle/body when needed.
+- problem / solution: must include payoff/supporting text; no title-only slide.
+- insight (big-statement): must include supporting text; no title-only slide.
 - list (feature-list): subtitle must be ""; 2–6 bullets per limits.
 - comparison: exactly two body strings (before vs after), each within per-side max.
-- contrast (contrast-card): generate contrastLabelA and contrastLabelB as short, topic-aware editorial labels (do not use generic old/new/before/after); generate exactly two body strings (A text / B text), each within per-side max; optional short subtitle allowed.
-- stat (big-statement): may be minimal; stats must include a digit. Supporting subtitle/body is optional.
-- cta (cta-final): ctaText required; button label must be a short action phrase (1–2 words only); body must be [].
-- If a non-hook title is a question (ends with ? or ؟), include answer/payoff text in subtitle or body.
-- The last content slide before CTA must resolve the idea; do not end it as an unresolved question.
+- contrast (contrast-card): generate specific contrastLabelA/B; exactly two body strings (A/B), each within per-side max.
+- stat (big-statement): stats must include a digit.
+- cta (cta-final): title is a short closing line; ctaText required — ${
+    analysis.language === "ar"
+      ? "Arabic imperative opening (e.g. تابع، ابدأ، جرّب، اكتشف، تواصل، احجز); 1–2 words only"
+      : "MUST start with an imperative verb (1–2 words only)"
+  }; body must be [] or minimal.
+- If a non-hook title is a question, include answer/payoff text in subtitle or body.
+- The last content slide before CTA must resolve the idea.
 
-ANTI-PATTERNS
-- Do not change roles from the plan.
-- Do not repeat the same headline across slides.
-- Do not exceed any max length — validation will reject the deck.
+ANTI-PATTERNS (FORBIDDEN)
+- repeating the same idea in different words
+- empty slides
+- weak middle slides
+- disconnected CTA
+- generic statements
 
-OUTPUT: JSON object { "slides": [ ... ] }. Each slide uses the schema max lengths for its index.`;
+FINAL CHECK (MANDATORY)
+Before returning:
+- ensure no redundancy
+- ensure logical flow
+- ensure CTA is actionable
+If not, fix internally before output.
+
+SLIDE COUNT: Return exactly ${slideCount} slides in "slides". Minimum allowed: ${MIN_DECK_SLIDES} (never 6 or fewer).
+OUTPUT: JSON object { "slides": [ ... ] } only.`;
 }
 
 function parseSlidesFromModelText(
@@ -718,13 +946,340 @@ function normalizeSlideOutput(
   };
 }
 
+function summarizeSlidesForCritic(slides: Omit<SlideContent, "id">[]): string {
+  return slides
+    .map((s, i) => {
+      const body = (s.body ?? []).join(" | ");
+      return `Slide ${i + 1} [${s.contentRole ?? "unknown"}]
+- title: ${s.title}
+- subtitle: ${s.subtitle ?? ""}
+- body: ${body}
+- stats: ${s.stats ?? ""}
+- cta: ${s.ctaText ?? ""}`;
+    })
+    .join("\n");
+}
+
+function coerceSemanticType(
+  raw: string
+): "redundant" | "empty" | "weak" | "invalid_role" | "no_progression" {
+  const t = raw.trim().toLowerCase();
+  if (
+    t === "redundant" ||
+    t === "empty" ||
+    t === "weak" ||
+    t === "invalid_role" ||
+    t === "no_progression"
+  ) {
+    return t;
+  }
+  return "weak";
+}
+
+function coerceSemanticSeverity(raw: string): "high" | "medium" | "low" {
+  const t = raw.trim().toLowerCase();
+  if (t === "high" || t === "medium" || t === "low") return t;
+  return "medium";
+}
+
+function normalizeSemanticResult(parsed: unknown): SemanticValidationResult {
+  if (!parsed || typeof parsed !== "object") {
+    return { verdict: "pass", issues: [] };
+  }
+  const p = parsed as Record<string, unknown>;
+  const issuesRaw = Array.isArray(p.issues) ? p.issues : [];
+  const issues: SemanticIssue[] = issuesRaw
+    .map((row) => {
+      const r = row as Record<string, unknown>;
+      const slide = Math.max(0, Number(r.slide) || 0);
+      const reason = String(r.reason ?? "").trim();
+      if (!reason) return null;
+      return {
+        slide,
+        type: coerceSemanticType(String(r.type ?? "weak")),
+        reason: reason.slice(0, 300),
+        severity: coerceSemanticSeverity(String(r.severity ?? "medium")),
+      } as SemanticIssue;
+    })
+    .filter((x): x is SemanticIssue => Boolean(x));
+
+  return {
+    verdict: issues.length > 0 ? "revise" : "pass",
+    issues,
+  };
+}
+
+function mergeSemanticResults(
+  localResult: SemanticValidationResult,
+  criticResult: SemanticValidationResult
+): SemanticValidationResult {
+  const key = (x: SemanticIssue) => `${x.slide}:${x.type}:${x.reason}`;
+  const seen = new Set<string>();
+  const merged: SemanticIssue[] = [];
+  for (const issue of [...localResult.issues, ...criticResult.issues]) {
+    const k = key(issue);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    merged.push(issue);
+  }
+  return {
+    verdict: merged.length > 0 ? "revise" : "pass",
+    issues: merged,
+  };
+}
+
+async function runSemanticCritic(
+  slides: Omit<SlideContent, "id">[],
+  plan: DeckPlan
+): Promise<SemanticValidationResult> {
+  const localResult = validateDeckSemantics(slides, plan, "en");
+  const criticPrompt = `Review this carousel for semantic storytelling quality.
+
+Return JSON with:
+- verdict: pass | revise
+- issues: [{slide,type,reason,severity}]
+
+Criteria:
+1) Redundancy: detect repeated ideas, not just repeated wording.
+2) Contribution: each slide must add new value.
+3) Role correctness: problem must contain real problem; solution must answer prior problem.
+4) Narrative flow: each slide should follow from prior slide.
+5) CTA justification: CTA must be supported by previous slides.
+
+DECK PLAN:
+${formatDeckPlanForPrompt(plan)}
+
+SLIDES:
+${summarizeSlidesForCritic(slides)}
+
+Only output JSON matching schema.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0.1,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a strict semantic critic for story-driven carousel coherence. Output JSON only.",
+        },
+        { role: "user", content: criticPrompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "semantic_critic",
+          strict: true,
+          schema: SEMANTIC_CRITIC_JSON_SCHEMA,
+        },
+      },
+      max_tokens: 1800,
+    });
+    const text = completion.choices[0]?.message?.content?.trim() ?? "{}";
+    const parsed = tryParseJson(text);
+    const criticResult = normalizeSemanticResult(parsed);
+    return mergeSemanticResults(localResult, criticResult);
+  } catch (e) {
+    console.warn("semantic critic failed; using local semantic validator only:", e);
+    return localResult;
+  }
+}
+
+function contiguousProblemSegment(
+  issues: SemanticIssue[],
+  upperBound: number
+): number[] {
+  const candidates = [...new Set(issues.map((i) => i.slide))]
+    .filter((x) => x >= 0 && x < upperBound)
+    .sort((a, b) => a - b);
+  if (candidates.length < 2) return [];
+  for (let i = 0; i < candidates.length - 1; i++) {
+    if (candidates[i + 1] === candidates[i] + 1) {
+      return [candidates[i], candidates[i + 1]];
+    }
+  }
+  return [];
+}
+
+function ctaSemanticIssues(
+  semantic: SemanticValidationResult,
+  ctaIndex: number
+): SemanticIssue[] {
+  /** Only issues that warrant an LLM CTA fix — never weak / no_progression. */
+  return semantic.issues.filter(
+    (i) =>
+      i.slide === ctaIndex &&
+      i.type !== "weak" &&
+      i.type !== "no_progression" &&
+      (i.type === "invalid_role" || i.type === "empty")
+  );
+}
+
+function onlyFinalSlideHasIssues(
+  semantic: SemanticValidationResult,
+  ctaIndex: number
+): boolean {
+  const relevant = semantic.issues.filter(
+    (i) => i.type !== "weak" && i.type !== "no_progression"
+  );
+  if (relevant.length === 0) return false;
+  return relevant.every((i) => i.slide === ctaIndex);
+}
+
+function weakRescueTargets(
+  semantic: SemanticValidationResult,
+  upperExclusive: number
+): number[] {
+  const rank = (s: SemanticIssue["severity"]) => (s === "high" ? 3 : s === "medium" ? 2 : 1);
+  const grouped = new Map<number, number>();
+  for (const issue of semantic.issues) {
+    if (issue.slide < 0 || issue.slide >= upperExclusive) continue;
+    if (issue.type !== "weak" && issue.type !== "redundant" && issue.type !== "no_progression") continue;
+    grouped.set(issue.slide, (grouped.get(issue.slide) ?? 0) + rank(issue.severity));
+  }
+  return [...grouped.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([idx]) => idx);
+}
+
+function trimCtaLabelToMaxWords(label: string, maxWords: 2): string {
+  const parts = label.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= maxWords) return parts.join(" ");
+  return parts.slice(0, maxWords).join(" ");
+}
+
+/**
+ * Local CTA repair: short label, fallbacks, no API calls.
+ * Fixes CTA_LABEL_TOO_WORDY and missing ctaText before structural validation.
+ */
+function autoFixCtaSlide(
+  slides: Omit<SlideContent, "id">[],
+  plan: DeckPlan,
+  analysis: AnalysisResult
+): { slides: Omit<SlideContent, "id">[]; changed: boolean } {
+  let changed = false;
+  const idx = plan.targetSlides - 1;
+  if (idx < 0 || idx >= slides.length) return { slides, changed: false };
+  const row = plan.slides[idx];
+  if (!row || row.contentRole !== "cta") return { slides, changed: false };
+
+  const next = slides.map((s) => ({ ...s }));
+  let s = { ...next[idx] };
+  const c = getContractForLayout(s.layoutType);
+
+  if ((s.body?.length ?? 0) > 0) {
+    s.body = undefined;
+    changed = true;
+  }
+
+  let cta = String(s.ctaText ?? "").trim();
+  const subtitleForCtaCheck = String(s.subtitle ?? "").trim();
+  if (!cta) {
+    cta = analysis.language === "ar" ? "ابدأ الآن" : "Start Now";
+    changed = true;
+  } else if (cta.split(/\s+/).filter(Boolean).length > 2) {
+    cta = trimCtaLabelToMaxWords(cta, 2);
+    changed = true;
+  }
+  if (c.ctaMaxChars > 0 && cta.length > c.ctaMaxChars) {
+    cta = cta.slice(0, c.ctaMaxChars).trim();
+    changed = true;
+  }
+  if (
+    analysis.language === "ar" &&
+    !ctaPassesLocalizedSemanticCheck(cta, subtitleForCtaCheck, "ar")
+  ) {
+    const fallbacks = ["ابدأ الآن", "تابع الآن", "جرّب الآن"] as const;
+    cta = fallbacks[idx % fallbacks.length];
+    changed = true;
+  }
+  s.ctaText = cta;
+
+  let title = String(s.title ?? "").trim();
+  if (!title) {
+    const fallbackTitle =
+      analysis.language === "ar" ? "الخطوة التالية" : "Take the next step";
+    title = (analysis.ctaDirection || fallbackTitle).slice(0, c.titleMaxChars).trim();
+    s.title = title || (analysis.language === "ar" ? "التالي" : "Next step");
+    changed = true;
+  }
+
+  const sub = String(s.subtitle ?? "").trim();
+  if (!sub && c.subtitleMaxChars > 0) {
+    const raw =
+      analysis.ctaDirection.trim() ||
+      (analysis.language === "ar"
+        ? "اضغط أدناه للمتابعة."
+        : "Tap below while this is still fresh.");
+    s.subtitle = raw.slice(0, c.subtitleMaxChars).trim();
+    changed = true;
+  }
+
+  const vi = String(s.visualIntent ?? "").trim();
+  if (!vi) {
+    s.visualIntent = row.purpose.slice(0, c.visualIntentMaxChars);
+    changed = true;
+  }
+
+  s = alignSlideToPlan(s, row, idx);
+  next[idx] = s;
+  return { slides: next, changed };
+}
+
+function autoFixStatsOverflow(
+  slides: Omit<SlideContent, "id">[]
+): { slides: Omit<SlideContent, "id">[]; changed: boolean } {
+  let changed = false;
+  const next = slides.map((s) => ({ ...s }));
+  for (let i = 0; i < next.length; i++) {
+    const stats = String(next[i].stats ?? "").trim();
+    if (!stats) continue;
+    const c = getContractForLayout(next[i].layoutType);
+    if (c.statsMaxChars <= 0) {
+      next[i].stats = undefined;
+      changed = true;
+      continue;
+    }
+    if (stats.length > c.statsMaxChars) {
+      next[i].stats = stats.slice(0, c.statsMaxChars).trim();
+      changed = true;
+    }
+  }
+  return { slides: next, changed };
+}
+
+function structuralIssueCount(issues: ReturnType<typeof validateDeck>): number {
+  return issues
+    .filter((i) => i.index >= 0)
+    .reduce((acc, i) => acc + i.errors.length, 0);
+}
+
+function weakSlideCount(semantic: SemanticValidationResult): number {
+  return new Set(
+    semantic.issues
+      .filter((i) => i.type === "weak")
+      .map((i) => i.slide)
+      .filter((i) => i >= 0)
+  ).size;
+}
+
+function shouldEarlyWholeDeckRetry(
+  structural: ReturnType<typeof validateDeck>,
+  semantic: SemanticValidationResult
+): boolean {
+  return structuralIssueCount(structural) >= 2 && weakSlideCount(semantic) >= 4;
+}
+
 async function regenerateSingleSlide(
   index: number,
   plan: DeckPlan,
   analysis: AnalysisResult,
   brandName: string,
   deck: Omit<SlideContent, "id">[],
-  errors: SlideValidationError[]
+  errors: SlideValidationError[],
+  semanticIssues: SemanticIssue[] = []
 ): Promise<Omit<SlideContent, "id"> | null> {
   const row = plan.slides[index];
   const schema = {
@@ -748,19 +1303,54 @@ async function regenerateSingleSlide(
   const prioritizedErrors = sortErrorsForPrompt(errors);
   const layoutBlock = formatSingleSlideNumericContract(plan, index);
   const currentTitle = String(deck[index]?.title ?? "").trim();
+  const prevSlide = index > 0 ? deck[index - 1] : undefined;
+  const nextSlide = index < deck.length - 1 ? deck[index + 1] : undefined;
 
   const userPrompt = `Regenerate ONLY slide ${index + 1} of ${plan.targetSlides} (Instagram carousel).
+
+${formatLanguageConstraintsForPrompt(analysis)}
 
 ${layoutBlock}
 
 VALIDATION ISSUES (fix in order of severity — HIGH first):
 ${JSON.stringify(prioritizedErrors, null, 2)}
 
+SEMANTIC ISSUES (story coherence):
+${semanticIssues.length ? JSON.stringify(semanticIssues, null, 2) : "[]"}
+
 CURRENT TITLE (replace if it caused duplication or generic/length errors): "${currentTitle}"
 
 PLAN ROW
 - contentRole: ${row.contentRole}
+- valueType: ${row.valueType}
 - purpose: ${row.purpose}
+- claim: ${row.claim}
+- newInformation: ${row.newInformation}
+- dependsOn: ${row.dependsOn}
+- mustNotRepeat: ${row.mustNotRepeat.join(" | ") || "(none)"}
+- bridgeToNext: ${row.bridgeToNext}
+
+NEIGHBOR CONTEXT
+- previous slide: ${
+  prevSlide
+    ? JSON.stringify({
+        title: prevSlide.title,
+        subtitle: prevSlide.subtitle ?? "",
+        body: prevSlide.body ?? [],
+        role: prevSlide.contentRole ?? "",
+      })
+    : "(none)"
+}
+- next slide: ${
+  nextSlide
+    ? JSON.stringify({
+        title: nextSlide.title,
+        subtitle: nextSlide.subtitle ?? "",
+        body: nextSlide.body ?? [],
+        role: nextSlide.contentRole ?? "",
+      })
+    : "(none)"
+}
 
 BRIEF
 - Topic: ${analysis.topic}
@@ -774,6 +1364,16 @@ ANTI-REPEAT
 - Stat slides: stats must contain a digit. Final slide: non-empty ctaText within max length.
 - Non-hook question slides must include payoff text (subtitle/body).
 - CTA button label must stay short (1–3 words).
+- This slide must add NEW information versus neighboring slides and connect story flow.
+${row.contentRole === "cta"
+  ? `CTA-ONLY HARD RULES
+- This slide must be an unmistakable call-to-action, not a summary.
+- title: short closing line that follows from previous slide.
+- ctaText: REQUIRED imperative action phrase (1–2 words), must start with an action verb.
+- subtitle: optional support line that reinforces urgency/value.
+- body: [] (preferred) or minimal by schema; do not turn it into a list.
+- Forbidden CTA endings: generic reflections like "in conclusion", "thanks for reading", "remember this".`
+  : ""}
 
 Return JSON only: { "slides": [ one object matching schema ] }`;
 
@@ -840,6 +1440,117 @@ Return JSON only: { "slides": [ one object matching schema ] }`;
   }
 }
 
+async function regenerateSlideSegment(
+  indexes: number[],
+  plan: DeckPlan,
+  analysis: AnalysisResult,
+  brandName: string,
+  deck: Omit<SlideContent, "id">[],
+  semanticIssues: SemanticIssue[]
+): Promise<Map<number, Omit<SlideContent, "id">>> {
+  const out = new Map<number, Omit<SlideContent, "id">>();
+  if (indexes.length < 2) return out;
+  const [start, end] = [indexes[0], indexes[indexes.length - 1]];
+  const segmentRows = plan.slides.slice(start, end + 1);
+  const segmentSchema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      slides: {
+        type: "array",
+        prefixItems: segmentRows.map((_, offset) =>
+          buildSlideItemSchema(plan, start + offset)
+        ),
+        minItems: segmentRows.length,
+        maxItems: segmentRows.length,
+      },
+    },
+    required: ["slides"],
+  };
+
+  const prompt = `Regenerate a contiguous weak segment of an Instagram carousel.
+Segment: slides ${start + 1} to ${end + 1} (inclusive).
+
+${formatLanguageConstraintsForPrompt(analysis)}
+
+Semantic issues:
+${JSON.stringify(semanticIssues, null, 2)}
+
+Segment plan rows:
+${segmentRows
+  .map(
+    (r, i) => `- Slide ${start + i + 1}
+  role=${r.contentRole}
+  valueType=${r.valueType}
+  purpose=${r.purpose}
+  claim=${r.claim}
+  newInformation=${r.newInformation}
+  dependsOn=${r.dependsOn}
+  mustNotRepeat=${r.mustNotRepeat.join(" | ") || "(none)"}
+  bridgeToNext=${r.bridgeToNext}`
+  )
+  .join("\n")}
+
+Neighbor anchors (do not rewrite):
+- previous anchor: ${
+  start > 0
+    ? JSON.stringify({
+        title: deck[start - 1].title,
+        role: deck[start - 1].contentRole,
+      })
+    : "(none)"
+}
+- next anchor: ${
+  end < deck.length - 1
+    ? JSON.stringify({
+        title: deck[end + 1].title,
+        role: deck[end + 1].contentRole,
+      })
+    : "(none)"
+}
+
+Rules:
+- Keep exact role order and layout constraints.
+- Each regenerated slide must add distinct new value.
+- Avoid semantic repetition inside segment and with anchors.
+- Return JSON only: {"slides":[...]} with exactly ${segmentRows.length} objects.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You rewrite weak adjacent slides while preserving story continuity and strict schema.",
+        },
+        { role: "user", content: prompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "segment_regen",
+          strict: true,
+          schema: segmentSchema,
+        },
+      },
+      max_tokens: 2200,
+    });
+    const text = completion.choices[0]?.message?.content?.trim() ?? "";
+    const parsed = text ? tryParseJson(text) : null;
+    const rows = slidesFromParsed(parsed);
+    rows.forEach((row, offset) => {
+      const idx = start + offset;
+      const normalized = normalizeSlide(row, idx);
+      out.set(idx, alignSlideToPlan(normalized, plan.slides[idx], idx));
+    });
+  } catch (e) {
+    console.warn("segment regeneration failed:", e);
+  }
+  return out;
+}
+
 function acceptDeckWithOptionalWarnings(
   slides: Omit<SlideContent, "id">[],
   plan: DeckPlan,
@@ -859,47 +1570,197 @@ async function finalizeDeckWithRegeneration(
   brandName: string
 ): Promise<Omit<SlideContent, "id">[]> {
   let slides = alignDeckToPlan(initial, plan);
+  let didAutoFixStats = false;
+  const autofixInitial = autoFixStatsOverflow(slides);
+  if (autofixInitial.changed) {
+    slides = autofixInitial.slides;
+    didAutoFixStats = true;
+  }
+  const autofixCtaInitial = autoFixCtaSlide(slides, plan, analysis);
+  if (autofixCtaInitial.changed) {
+    slides = autofixCtaInitial.slides;
+  }
   const regenPerIndex = new Array(plan.targetSlides).fill(0);
   let totalRegenCalls = 0;
+  let segmentRegenCalls = 0;
+  let ctaRescueCalls = 0;
+  let telemetryEmitted = false;
+  const emitTelemetry = (
+    pathTaken: "initial_accept" | "cta_rescue" | "partial_regen" | "whole_retry" | "final_fail",
+    structuralIssues: ReturnType<typeof validateDeck>,
+    semanticIssues: SemanticValidationResult
+  ) => {
+    if (telemetryEmitted) return;
+    telemetryEmitted = true;
+    const slideCount = slides.length;
+    if (slideCount < MIN_DECK_SLIDES) {
+      console.warn("[carousel-warning] slide count too low", { slideCount });
+    }
+    console.debug("[carousel-recovery]", {
+      structuralCount: structuralIssueCount(structuralIssues),
+      weakSlides: weakSlideCount(semanticIssues),
+      didAutoFixStats,
+      pathTaken,
+      slideCount,
+    });
+  };
+
+  // Pragmatic early acceptance: if there are no HIGH-severity issues, ship immediately.
+  const initialStructural = validateDeck(slides, plan);
+  const initialSemantic = validateDeckSemantics(slides, plan, analysis.language);
+  if (shouldEarlyWholeDeckRetry(initialStructural, initialSemantic)) {
+    emitTelemetry("whole_retry", initialStructural, initialSemantic);
+    throw new Error(EARLY_WHOLE_DECK_RETRY_ERROR);
+  }
+  const initialStructuralHigh =
+    structuralFailure(initialStructural) || blockingIssuesHaveHighSeverity(initialStructural);
+  const initialSemanticHigh = highestSemanticSeverity(initialSemantic) === "high";
+  if (!initialStructuralHigh && !initialSemanticHigh) {
+    emitTelemetry("initial_accept", initialStructural, initialSemantic);
+    return acceptDeckWithOptionalWarnings(
+      slides,
+      plan,
+      "Good-enough accept: no HIGH-severity issues on first pass."
+    );
+  }
 
   while (totalRegenCalls < MAX_REGEN_CALLS_TOTAL) {
-    const issues = validateDeck(slides, plan);
-    if (issues.length === 0) {
-      return slides.map(normalizeSlideOutput);
+    const autofix = autoFixStatsOverflow(slides);
+    if (autofix.changed) {
+      slides = autofix.slides;
+      didAutoFixStats = true;
     }
+    const autofixCta = autoFixCtaSlide(slides, plan, analysis);
+    if (autofixCta.changed) {
+      slides = autofixCta.slides;
+    }
+    const issues = validateDeck(slides, plan);
+    // Cost/speed mode: local semantic validator only during loop.
+    const semantic = validateDeckSemantics(slides, plan, analysis.language);
+    const semanticBySlide = semanticIssuesBySlide(semantic);
 
     const structural = issues.find((i) => i.index === -1);
     if (structural) {
       throw new Error(structural.errors[0]?.message ?? "Deck validation failed.");
     }
 
-    if (deckBlockingIssuesClear(issues)) {
+    const structuralHigh = blockingIssuesHaveHighSeverity(issues);
+    const semanticSeverity = highestSemanticSeverity(semantic);
+    if (!structuralHigh && semanticSeverity !== "high") {
+      emitTelemetry(
+        totalRegenCalls > 0 ? "partial_regen" : "initial_accept",
+        issues,
+        semantic
+      );
       return acceptDeckWithOptionalWarnings(
         slides,
         plan,
-        "Accepted deck with LOW-severity validation notes only."
+        "Good-enough accept: no HIGH-severity issues remain."
       );
+    }
+
+    const ctaIdx = plan.targetSlides - 1;
+    const ctaIssues = ctaSemanticIssues(semantic, ctaIdx);
+    const onlyCtaFailed = !structuralHigh && onlyFinalSlideHasIssues(semantic, ctaIdx);
+    if (ctaIssues.length > 0 && ctaRescueCalls < MAX_CTA_RESCUE_CALLS) {
+      ctaRescueCalls += 1;
+      const ctaReplacement = await regenerateSingleSlide(
+        ctaIdx,
+        plan,
+        analysis,
+        brandName,
+        slides,
+        [],
+        ctaIssues
+      );
+      if (ctaReplacement) {
+        slides[ctaIdx] = ctaReplacement;
+        if (onlyCtaFailed) {
+          const postStructural = validateDeck(slides, plan);
+          const postSemantic = validateDeckSemantics(slides, plan, analysis.language);
+          if (
+            !structuralFailure(postStructural) &&
+            !blockingIssuesHaveHighSeverity(postStructural) &&
+            highestSemanticSeverity(postSemantic) !== "high"
+          ) {
+            emitTelemetry("cta_rescue", postStructural, postSemantic);
+            return acceptDeckWithOptionalWarnings(
+              slides,
+              plan,
+              "Accepted after fast CTA-only rescue."
+            );
+          }
+        }
+        totalRegenCalls += 1;
+        continue;
+      }
+    }
+
+    const segment = contiguousProblemSegment(semantic.issues, plan.targetSlides - 1);
+    if (segment.length >= 2 && segmentRegenCalls < MAX_SEGMENT_REGEN_CALLS) {
+      segmentRegenCalls += 1;
+      const replaced = await regenerateSlideSegment(
+        segment,
+        plan,
+        analysis,
+        brandName,
+        slides,
+        semantic.issues.filter((x) => segment.includes(x.slide))
+      );
+      if (replaced.size > 0) {
+        for (const [idx, s] of replaced.entries()) {
+          slides[idx] = s;
+        }
+        totalRegenCalls += 1;
+        continue;
+      }
     }
 
     const ordered = sortIssuesForRegeneration(issues);
-    const candidate = ordered.find(
-      (i) => regenPerIndex[i.index] < MAX_REGEN_PER_SLIDE
-    );
+    const semanticCandidates = [...semanticBySlide.entries()]
+      .filter(([idx, arr]) => {
+        if (!(idx >= 0 && idx < plan.targetSlides - 1) || arr.length === 0) return false;
+        // Never spend regen budget on weak / no_progression (non-blocking guidance).
+        return arr.some(
+          (x) =>
+            x.severity === "high" &&
+            x.type !== "weak" &&
+            x.type !== "no_progression"
+        );
+      })
+      .sort((a, b) => {
+        const score = (xs: SemanticIssue[]) =>
+          xs.reduce((acc, x) => acc + (x.severity === "high" ? 10 : x.severity === "medium" ? 2 : 1), 0);
+        return score(b[1]) - score(a[1]);
+      });
 
-    if (!candidate) {
-      if (!blockingIssuesHaveHighSeverity(issues)) {
+    const structuralCandidate = ordered.find((i) => regenPerIndex[i.index] < MAX_REGEN_PER_SLIDE);
+    const semanticCandidate = semanticCandidates.find(
+      ([idx]) => regenPerIndex[idx] < MAX_REGEN_PER_SLIDE
+    );
+    const candidateIndex =
+      semanticSeverity === "high" && semanticCandidate
+        ? semanticCandidate[0]
+        : structuralCandidate?.index ?? semanticCandidate?.[0];
+
+    if (candidateIndex === undefined) {
+      if (!blockingIssuesHaveHighSeverity(issues) && semanticSeverity !== "high") {
         return acceptDeckWithOptionalWarnings(
           slides,
           plan,
-          "Partial accept: regen budget exhausted; no HIGH-severity issues remain."
+          "Partial accept: regeneration budget exhausted; no HIGH issues remain."
         );
       }
       throw new Error(
-        `Carousel validation failed after regeneration attempts: ${JSON.stringify(issues, null, 2)}`
+        `Carousel validation failed after regeneration attempts: ${JSON.stringify(
+          { structural: issues, semantic: semantic.issues },
+          null,
+          2
+        )}`
       );
     }
 
-    const idx = candidate.index;
+    const idx = candidateIndex;
     regenPerIndex[idx] += 1;
     totalRegenCalls += 1;
 
@@ -909,38 +1770,115 @@ async function finalizeDeckWithRegeneration(
       analysis,
       brandName,
       slides,
-      candidate.errors
+      structuralCandidate?.index === idx ? structuralCandidate.errors : [],
+      semanticBySlide.get(idx) ?? []
     );
     if (replacement) {
       slides[idx] = replacement;
     }
   }
 
+  const finalAuto = autoFixStatsOverflow(slides);
+  if (finalAuto.changed) {
+    slides = finalAuto.slides;
+    didAutoFixStats = true;
+  }
+  const finalCtaAuto = autoFixCtaSlide(slides, plan, analysis);
+  if (finalCtaAuto.changed) {
+    slides = finalCtaAuto.slides;
+  }
   const finalIssues = validateDeck(slides, plan);
+  const finalSemantic = validateDeckSemantics(slides, plan, analysis.language);
+  const finalCtaIdx = plan.targetSlides - 1;
+  const finalCtaIssues = ctaSemanticIssues(finalSemantic, finalCtaIdx);
+  if (finalCtaIssues.length > 0 && ctaRescueCalls < MAX_CTA_RESCUE_CALLS) {
+    ctaRescueCalls += 1;
+    const ctaReplacement = await regenerateSingleSlide(
+      finalCtaIdx,
+      plan,
+      analysis,
+      brandName,
+      slides,
+      [],
+      finalCtaIssues
+    );
+    if (ctaReplacement) {
+      slides[finalCtaIdx] = ctaReplacement;
+      const rescueStructural = validateDeck(slides, plan);
+      const rescueSemantic = validateDeckSemantics(slides, plan, analysis.language);
+      if (
+        !structuralFailure(rescueStructural) &&
+        !blockingIssuesHaveHighSeverity(rescueStructural) &&
+        highestSemanticSeverity(rescueSemantic) !== "high"
+      ) {
+        emitTelemetry("cta_rescue", rescueStructural, rescueSemantic);
+        return acceptDeckWithOptionalWarnings(
+          slides,
+          plan,
+          "Accepted after CTA rescue pass."
+        );
+      }
+    }
+  }
   if (finalIssues.length === 0) {
-    return slides.map(normalizeSlideOutput);
+    if (finalSemantic.verdict === "pass") {
+      emitTelemetry(
+        totalRegenCalls > 0 ? "partial_regen" : "initial_accept",
+        finalIssues,
+        finalSemantic
+      );
+      return slides.map(normalizeSlideOutput);
+    }
+    if (highestSemanticSeverity(finalSemantic) !== "high") {
+      emitTelemetry(
+        totalRegenCalls > 0 ? "partial_regen" : "initial_accept",
+        finalIssues,
+        finalSemantic
+      );
+      return acceptDeckWithOptionalWarnings(
+        slides,
+        plan,
+        "Accepted after regeneration budget with non-critical semantic notes."
+      );
+    }
   }
   if (structuralFailure(finalIssues)) {
     throw new Error(
       finalIssues[0]?.errors[0]?.message ?? "Deck validation failed."
     );
   }
-  if (deckBlockingIssuesClear(finalIssues)) {
+  if (deckBlockingIssuesClear(finalIssues) && highestSemanticSeverity(finalSemantic) !== "high") {
+    emitTelemetry(
+      totalRegenCalls > 0 ? "partial_regen" : "initial_accept",
+      finalIssues,
+      finalSemantic
+    );
     return acceptDeckWithOptionalWarnings(
       slides,
       plan,
       "Accepted after regen budget: LOW-only issues remain."
     );
   }
-  if (!blockingIssuesHaveHighSeverity(finalIssues)) {
+  if (!blockingIssuesHaveHighSeverity(finalIssues) && highestSemanticSeverity(finalSemantic) !== "high") {
+    emitTelemetry(
+      totalRegenCalls > 0 ? "partial_regen" : "initial_accept",
+      finalIssues,
+      finalSemantic
+    );
     return acceptDeckWithOptionalWarnings(
       slides,
       plan,
       "Partial accept after regen budget: MEDIUM issues only."
     );
   }
+
+  emitTelemetry("final_fail", finalIssues, finalSemantic);
   throw new Error(
-    `Exceeded regeneration budget with HIGH-severity issues: ${JSON.stringify(finalIssues, null, 2)}`
+    `Exceeded regeneration budget with HIGH-severity issues: ${JSON.stringify(
+      { structural: finalIssues, semantic: finalSemantic.issues },
+      null,
+      2
+    )}`
   );
 }
 
@@ -956,8 +1894,12 @@ async function generateSlidesFromAnalysis(
   const slideCount = plan.targetSlides;
   const userPrompt = buildSlidesUserPrompt(analysis, brandName, plan);
   const schema = buildCarouselWrapperSchema(plan);
-  const systemStrict = `You are a premium carousel designer. Output JSON only. Exactly ${slideCount} slides in "slides". Each slide must include contentRole and emphasis. Slide i contentRole MUST match the editorial plan row i. Each role maps to a fixed layout — shape fields (body length, stats, ctaText) to that layout. Enums must match the schema.`;
-  const systemLoose = `You are a premium carousel designer. Reply with a single JSON object: {"slides":[...]} with exactly ${slideCount} slides. Match each slide's contentRole to the provided plan in order; each role implies a layout — fit copy to that layout. Each slide: contentRole, emphasis, visualIntent, title, subtitle, body (array), stats, ctaText, contrastLabelA, contrastLabelB. No markdown.`;
+  const langLine =
+    analysis.language === "ar"
+      ? "All titles, subtitles, body lines, stats, labels, and CTA text must be in Arabic only."
+      : "All titles, subtitles, body lines, stats, labels, and CTA text must be in English only.";
+  const systemStrict = `You are a premium carousel designer. Output JSON only. Exactly ${slideCount} slides in "slides". Each slide must include contentRole and emphasis. Slide i contentRole MUST match the editorial plan row i. Each role maps to a fixed layout — shape fields (body length, stats, ctaText) to that layout. Enums must match the schema. Enforce semantic progression: every slide adds new value and does not restate earlier ideas. ${langLine} Do not mix languages.`;
+  const systemLoose = `You are a premium carousel designer. Reply with a single JSON object: {"slides":[...]} with exactly ${slideCount} slides. Match each slide's contentRole to the provided plan in order; each role implies a layout — fit copy to that layout. Each slide: contentRole, emphasis, visualIntent, title, subtitle, body (array), stats, ctaText, contrastLabelA, contrastLabelB. Enforce semantic delta from previous slides; no filler or repeated ideas. ${langLine} No markdown.`;
 
   const runStructured = () =>
     openai.chat.completions.create({
@@ -1023,7 +1965,7 @@ export async function generateCarouselContent(
   userInput: string,
   brandName: string
 ): Promise<SlideContent[]> {
-  const maxRetries = 2;
+  const maxRetries = 1;
   let lastError: unknown = null;
 
   for (let i = 0; i <= maxRetries; i++) {
