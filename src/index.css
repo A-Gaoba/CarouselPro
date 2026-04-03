@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-ar-sans: "Tajawal", "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-ar-display: "Tajawal", "Noto Sans Arabic", sans-serif;
+  
+  --color-brand-primary: var(--brand-primary, #0F172A);
+  --color-brand-secondary: var(--brand-secondary, #F8FAFC);
+  --color-brand-accent: var(--brand-accent, #6366F1);
+  --color-brand-cta: var(--brand-cta, #4F46E5);
+}
+
+@layer base {
+  body {
+    @apply bg-[#fdfdfd] text-[#0F172A] font-sans antialiased;
+  }
+
+  html[lang="ar"] body {
+    font-family: var(--font-ar-sans);
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  html[lang="ar"] h1,
+  html[lang="ar"] h2,
+  html[lang="ar"] h3,
+  html[lang="ar"] h4,
+  html[lang="ar"] h5,
+  html[lang="ar"] h6 {
+    font-family: var(--font-ar-display);
+    letter-spacing: 0;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+}
+
+/* Slide Canvas & Layouts */
+.slide-canvas {
+  @apply relative w-full h-full overflow-hidden flex flex-col;
+  aspect-ratio: 4 / 5;
+}
+
+/* Premium empty template: subtle dot field + injection region */
+.slide-template-surface {
+  background-color: #fafafa;
+}
+
+.slide-template-dots {
+  background-image: radial-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.slide-main-inject {
+  @apply relative z-[1] flex min-h-0 flex-1 flex-col px-10 py-8;
+}
+
+/* Arabic slide canvas: Tajawal + comfortable line metrics for RTL content */
+.slide-canvas-rtl {
+  font-family: var(--font-ar-sans);
+}
+
+.slide-canvas-rtl .font-display {
+  font-family: var(--font-ar-display);
+}
+
+.slide-ar-title {
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.slide-ar-body {
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+}
+
+.slide-content-container {
+  @apply flex-1 flex flex-col justify-center px-12 py-8 relative z-10;
+}
+
+/* Reusable Component Classes */
+.glass-panel {
+  @apply rounded-[24px] border shadow-sm backdrop-blur-md;
+  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
+  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+}
+
+.brand-pill {
+  @apply inline-flex items-center gap-2 px-4 py-1.5 rounded-full border shadow-sm;
+  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
+  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+}
+
+.cta-button {
+  @apply px-12 py-5 rounded-[24px] font-black text-white flex items-center gap-3 text-xl shadow-xl transition-all hover:scale-105 active:scale-95;
+}
+
+.bg-accent-gradient {
+  background: var(--accent-gradient, linear-gradient(135deg, #6366F1, #4F46E5));
+}
+
+.feature-card {
+  @apply rounded-[24px] border shadow-sm flex items-center gap-4 p-6 transition-all;
+  background-color: var(--glass-bg, rgba(255, 255, 255, 0.7));
+  border-color: var(--glass-border, rgba(0, 0, 0, 0.1));
+}
+
+.comparison-card {
+  @apply p-8 rounded-[32px] border relative overflow-hidden transition-all;
+}
+
+/* Background Accents */
+.bg-blob {
+  @apply absolute rounded-full blur-[60px] pointer-events-none;
+}
+
+.bg-grid {
+  @apply absolute inset-0 pointer-events-none;
+  background-image: radial-gradient(var(--grid-color, rgba(0,0,0,0.1)) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.bg-pattern {
+  @apply absolute inset-0 pointer-events-none;
+  background-image: linear-gradient(45deg, var(--pattern-color, rgba(0,0,0,0.05)) 25%, transparent 25%, transparent 50%, var(--pattern-color, rgba(0,0,0,0.05)) 50%, var(--pattern-color, rgba(0,0,0,0.05)) 75%, transparent 75%, transparent);
+  background-size: 40px 40px;
+}
+
+/* Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Export Specifics - Ensuring visibility */
+[data-exporting="true"] .glass-panel,
+[data-exporting="true"] .brand-pill,
+[data-exporting="true"] .feature-card {
+  @apply backdrop-blur-none; /* Backdrop blur can be flaky in some export environments */
+  background-color: var(--glass-bg-export, rgba(255, 255, 255, 0.95));
+}
