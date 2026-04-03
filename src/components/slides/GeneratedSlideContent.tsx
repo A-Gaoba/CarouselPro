@@ -229,7 +229,7 @@ function ModeCta({
 }) {
   return (
     <>
-      <div className="mb-6 flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1rem] border border-gray-100 bg-white text-3xl shadow-sm">
+      <div className="mb-6 flex h-18 w-18 items-center justify-center rounded-2xl border border-gray-100 bg-white text-3xl shadow-sm">
         {brand.logoUrl ? (
           <img
             src={brand.logoUrl}
